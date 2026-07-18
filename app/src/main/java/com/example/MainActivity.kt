@@ -1,4 +1,4 @@
-package com.aistudio.familysavings.cleaninstall
+package com.example
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -7,9 +7,10 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Modifier
-import com.aistudio.familysavings.cleaninstall.ui.SavingsViewModel
-import com.aistudio.familysavings.cleaninstall.ui.screens.FamilySavingsApp
-import com.aistudio.familysavings.cleaninstall.ui.theme.MyApplicationTheme
+import com.example.ui.SavingsViewModel
+import com.example.ui.screens.FamilySavingsApp
+import com.example.ui.theme.MyApplicationTheme
+import com.example.R
 
 class MainActivity : ComponentActivity() {
   private val viewModel: SavingsViewModel by viewModels()

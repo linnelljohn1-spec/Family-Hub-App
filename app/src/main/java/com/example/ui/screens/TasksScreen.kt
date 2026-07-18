@@ -1,4 +1,4 @@
-package com.aistudio.familysavings.cleaninstall.ui.screens
+package com.example.ui.screens
 
 import androidx.compose.animation.*
 import androidx.compose.foundation.*

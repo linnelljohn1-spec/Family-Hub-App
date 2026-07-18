@@ -10,7 +10,7 @@ plugins {
 }
 
 android {
-  namespace = "com.aistudio.familysavings.cleaninstall"
+  namespace = "com.example"
   compileSdk = 35
 
   defaultConfig {
