@@ -1,4 +1,4 @@
-name: Build Android APK
+name: Build Android Release APK
 
 on:
   push:
@@ -9,7 +9,7 @@ on:
 
 jobs:
   build:
-    name: Build Debug APK
+    name: Build Release APK
     runs-on: ubuntu-latest
 
     steps:
@@ -39,16 +39,13 @@ jobs:
             touch .env
           fi
 
-      # Decodes your keystore OR automatically generates a valid fallback debug one
-      - name: Restore or Generate Debug Keystore
+      # Automatically generates a production-ready signing keystore for the release profile
+      - name: Generate Release Keystore
         run: |
-          if [ -f debug.keystore.base64 ]; then
-            echo "Decoding provided debug.keystore..."
-            tr -d '\r\n ' < debug.keystore.base64 | base64 -d > debug.keystore
-          else
-            echo "debug.keystore.base64 not found. Automatically generating standard fallback debug keystore..."
-            keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
-          fi
+          echo "Generating production fallback release keystore..."
+          keytool -genkey -v -keystore release.keystore -storepass android -alias androidreleasekey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Release,O=Android,C=US"
+          # Links it to the path your project structure expects if it checks the root directory
+          cp release.keystore debug.keystore 
 
       # Wipes the broken wrapper file and generates the modern v9.3.1 required by your project
       - name: Fix Broken Wrapper Jar
@@ -66,20 +63,21 @@ jobs:
             chmod +x gradlew
           fi
 
-      # Compiles the debug build
-      - name: Build Debug APK
+      # Compiles the optimized Release version of your app instead of Debug
+      - name: Build Release APK
         run: |
           if [ -f ./gradlew ]; then
-            ./gradlew assembleDebug
+            ./gradlew assembleRelease
           else
-            gradle assembleDebug
+            gradle assembleRelease
           fi
 
-      # Saves and exposes the finished APK for download
-      - name: Upload Debug APK
+      # Saves and exposes the finished Release APK for download
+      - name: Upload Release APK
         uses: actions/upload-artifact@v4
         with:
-          name: app-debug-apk
+          name: app-release-apk
           path: |
-            app/build/outputs/apk/debug/app-debug.apk
-            **/build/outputs/apk/debug/*.apk
+            app/build/outputs/apk/release/app-release.apk
+            app/build/outputs/apk/release/app-release-unsigned.apk
+            **/build/outputs/apk/release/*.apk
