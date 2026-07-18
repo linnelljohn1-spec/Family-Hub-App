@@ -1,0 +1,6 @@
+{
+  "name": "Family Organizer",
+  "description": "A centralized family organizer to manage shared savings, log contributions, track individual goals, and coordinate events or chores with a shared family calendar.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
