@@ -39,14 +39,15 @@ jobs:
             touch .env
           fi
 
-      # Decodes your keystore file safely
-      - name: Restore Debug Keystore
+      # Decodes your keystore OR automatically generates a valid fallback debug one
+      - name: Restore or Generate Debug Keystore
         run: |
           if [ -f debug.keystore.base64 ]; then
-            echo "Decoding debug.keystore..."
+            echo "Decoding provided debug.keystore..."
             tr -d '\r\n ' < debug.keystore.base64 | base64 -d > debug.keystore
           else
-            echo "debug.keystore.base64 not found. Gradle will generate a default debug keystore if needed."
+            echo "debug.keystore.base64 not found. Automatically generating standard fallback debug keystore..."
+            keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
           fi
 
       # Wipes the broken wrapper file and generates the modern v9.3.1 required by your project
