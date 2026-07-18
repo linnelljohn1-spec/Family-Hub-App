@@ -30,21 +30,24 @@ jobs:
           dependency-graph: disabled
           add-job-summary: 'never'
 
-      # Sets up local variables if your project needs them
-      - name: Create local .env file
+      # Sets up local variables and INJECTS THE KSP BUG FIX FLAGS
+      - name: Create local environment and properties
         run: |
           if [ -f .env.example ]; then
             cp .env.example .env
           else
             touch .env
           fi
+          
+          # --- THIS FIXES THE KSP NULLPOINTEREXCEPTION BUG ---
+          touch gradle.properties
+          echo "ksp.useDaemon=false" >> gradle.properties
 
       # Automatically generates a production-ready signing keystore for the release profile
       - name: Generate Release Keystore
         run: |
           echo "Generating production fallback release keystore..."
           keytool -genkey -v -keystore release.keystore -storepass android -alias androidreleasekey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Release,O=Android,C=US"
-          # Links it to the path your project structure expects if it checks the root directory
           cp release.keystore debug.keystore 
 
       # Wipes the broken wrapper file and generates the modern v9.3.1 required by your project
@@ -63,7 +66,7 @@ jobs:
             chmod +x gradlew
           fi
 
-      # Compiles the optimized Release version of your app instead of Debug
+      # Compiles the optimized Release version of your app
       - name: Build Release APK
         run: |
           if [ -f ./gradlew ]; then
