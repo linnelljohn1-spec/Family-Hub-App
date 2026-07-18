@@ -69,22 +69,25 @@ jobs:
             chmod +x gradlew
           fi
 
-      # Compiles the optimized Release version of your app with explicit memory allocations
+      # Compiles the Release version while injecting the AUTOMATED VERSION CODE
       - name: Build Release APK
         run: |
+          # 1. Base configuration flags for your signing keys
           SIGNING_FLAGS="-Pandroid.injected.signing.store.file=$(pwd)/my-upload-key.jks -Pandroid.injected.signing.store.password=android -Pandroid.injected.signing.key.alias=androidreleasekey -Pandroid.injected.signing.key.password=android"
           
+          # 2. Dynamic Version Code Injection (using GitHub Run Number)
+          VERSION_FLAGS="-Pandroid.injected.version.code=${{ github.run_number }} -Pandroid.injected.version.name=1.0.${{ github.run_number }}"
+          
           if [ -f ./gradlew ]; then
-            ./gradlew assembleRelease $SIGNING_FLAGS
+            ./gradlew assembleRelease $SIGNING_FLAGS $VERSION_FLAGS
           else
-            gradle assembleRelease $SIGNING_FLAGS
+            gradle assembleRelease $SIGNING_FLAGS $VERSION_FLAGS
           fi
 
-      # --- NEW STEP: FLATTENS THE FOLDER STRUCTURE ---
+      # Flatten the output folder structure for clean delivery
       - name: Prepare APK for Flat Upload
         run: |
           mkdir -p apk-output
-          # Finds all generated APK files and copies them directly into our new flat folder
           find . -name "*.apk" -exec cp {} apk-output/ \;
 
       # Saves and exposes the finished Release APK directly at the zip root
