@@ -42,11 +42,16 @@ jobs:
           touch gradle.properties
           echo "ksp.useDaemon=false" >> gradle.properties
 
-      # Generates the production-ready signing keystore
-      - name: Generate Release Keystore
+      # Reconstructs the consistent, persistent signing keystore from git
+      - name: Restore Persistent Keystore
         run: |
-          echo "Generating production matching my-upload-key.jks..."
-          keytool -genkey -v -keystore my-upload-key.jks -storepass android -alias androidreleasekey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Release,O=Android,C=US"
+          echo "Restoring persistent keystore from debug.keystore.base64..."
+          if [ -f debug.keystore.base64 ]; then
+            base64 -d debug.keystore.base64 > my-upload-key.jks
+          else
+            echo "debug.keystore.base64 not found! Generating fallback..."
+            keytool -genkey -v -keystore my-upload-key.jks -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+          fi
           cp my-upload-key.jks debug.keystore 
           cp my-upload-key.jks release.keystore
 
@@ -69,7 +74,7 @@ jobs:
       # --- FIXED STEP: INJECTS THE SIGNING PASSWORDS DIRECTLY VIA COMMAND LINE ---
       - name: Build Release APK
         run: |
-          SIGNING_FLAGS="-Pandroid.injected.signing.store.file=$(pwd)/my-upload-key.jks -Pandroid.injected.signing.store.password=android -Pandroid.injected.signing.key.alias=androidreleasekey -Pandroid.injected.signing.key.password=android"
+          SIGNING_FLAGS="-Pandroid.injected.signing.store.file=$(pwd)/my-upload-key.jks -Pandroid.injected.signing.store.password=android -Pandroid.injected.signing.key.alias=androiddebugkey -Pandroid.injected.signing.key.password=android"
           
           if [ -f ./gradlew ]; then
             ./gradlew assembleRelease $SIGNING_FLAGS

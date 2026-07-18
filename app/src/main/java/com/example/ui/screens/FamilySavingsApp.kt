@@ -85,6 +85,13 @@ fun FamilySavingsApp(viewModel: SavingsViewModel) {
     var selectedFamilyTabId by remember { mutableStateOf(-1) } // -1 for All Members
     var activeScreen by remember { mutableStateOf("hub") } // "hub", "savings", "calendar"
 
+    // Default onto the user who is logged on when activeMemberId loads
+    LaunchedEffect(activeMemberId) {
+        if (activeMemberId != -1) {
+            selectedFamilyTabId = activeMemberId
+        }
+    }
+
     // Dialog trigger states
     var showAddMemberDialog by remember { mutableStateOf(false) }
     var showAddGoalDialogForMemberId by remember { mutableStateOf<Int?>(null) }
@@ -111,7 +118,12 @@ fun FamilySavingsApp(viewModel: SavingsViewModel) {
             "hub" -> {
                 HubScreen(
                     viewModel = viewModel,
-                    onNavigateToSavings = { activeScreen = "savings" },
+                    onNavigateToSavings = { 
+                        activeScreen = "savings" 
+                        if (activeMemberId != -1) {
+                            selectedFamilyTabId = activeMemberId
+                        }
+                    },
                     onNavigateToCalendar = { activeScreen = "calendar" },
                     onNavigateToTasks = { activeScreen = "tasks" },
                     onSwitchProfileClick = { showSwitchProfileDialog = true }
@@ -1476,54 +1488,6 @@ fun AllMembersOverview(
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // Hero Banner Card
-        item {
-            Card(
-                shape = RoundedCornerShape(16.dp),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(180.dp)
-            ) {
-                Box(modifier = Modifier.fillMaxSize()) {
-                    Image(
-                        painter = painterResource(id = R.drawable.img_savings_banner),
-                        contentDescription = "Family Savings Banner",
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop
-                    )
-                    // Visual gradient overlay for readability
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(
-                                Brush.verticalGradient(
-                                    colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.7f)),
-                                    startY = 100f
-                                )
-                            )
-                    )
-                    Column(
-                        modifier = Modifier
-                            .align(Alignment.BottomStart)
-                            .padding(16.dp)
-                    ) {
-                        Text(
-                            text = "Dreaming & Saving Together",
-                            style = MaterialTheme.typography.headlineSmall,
-                            color = Color.White,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = "Track progress, achieve goals, and build family habits.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = Color.White.copy(alpha = 0.9f)
-                        )
-                    }
-                }
-            }
-        }
-
         // Combined Family Goal Performance Card styled to match Sleek Interface Monthly Summary Card
         if (membersWithPerformance.isNotEmpty()) {
             val totalSavedCombined = membersWithPerformance.sumOf { it.totalSaved }
