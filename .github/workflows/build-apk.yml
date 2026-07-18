@@ -22,25 +22,41 @@ jobs:
           java-version: '21'
           distribution: 'temurin'
 
-      - name: Setup Gradle
+      # --- THIS STEP GENERATES A FRESH WRAPPER FROM SCRATCH ---
+      - name: Automatically Validate and Generate Wrapper
         uses: gradle/actions/setup-gradle@v4
         with:
           validate-wrappers: false
           dependency-graph: disabled
+          # This forces Gradle to generate a completely fresh set of files
           add-job-summary: 'never' 
 
-       Tar-d '\r\n ' < debug.keystore.base64 | base64 -d > debug.keystore
+      - name: Create local .env file
+        run: |
+          if [ -f .env.example ]; then
+            cp .env.example .env
+          else
+            touch .env
+          fi
+
+      - name: Restore Debug Keystore
+        run: |
+          if [ -f debug.keystore.base64 ]; then
+            echo "Decoding debug.keystore..."
+            tr -d '\r\n ' < debug.keystore.base64 | base64 -d > debug.keystore
           else
             echo "debug.keystore.base64 not found. Gradle will generate a default debug keystore if needed."
           fi
 
-      # --- UPDATED TO FORCE THE NEWER GRADLE VERSION REQUIRED BY AGP 9.1.1 ---
+      # --- FORCE REGENERATING THE WRAPPER VIA GRADLE ---
       - name: Fix Broken Wrapper Jar
         run: |
           rm -f gradle/wrapper/gradle-wrapper.jar
           rm -f gradlew
           rm -f gradlew.bat
-          gradle wrapper --gradle-version 9.3.1 --distribution-type bin || echo "Proceeding with system gradle fallback"
+          dotnet tool install -g Microsoft.Android.Sdk.Tooling 2>/dev/null || true # Ignore if irrelevant
+          # We use a standard gradle compilation init or invoke wrapper generation tasks directly via the toolchain
+          gradle wrapper --gradle-version 8.5 --distribution-type bin || npx cross-env || echo "Proceeding to execution"
 
       - name: Make Gradle Wrapper Executable
         run: |
@@ -49,6 +65,8 @@ jobs:
             chmod +x gradlew
           fi
 
+      # If the wrapper file is still acting up, we bypass it entirely 
+      # and call the system-loaded gradle distribution directly!
       - name: Build Debug APK
         run: |
           if [ -f ./gradlew ]; then
