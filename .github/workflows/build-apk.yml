@@ -2,10 +2,10 @@ name: Build Android APK
 
 on:
   push:
-    branches: [ "**" ] # Triggers on push to any branch
+    branches: [ "**" ]
   pull_request:
     branches: [ "main", "master" ]
-  workflow_dispatch: # Allows manual trigger from the GitHub Actions UI
+  workflow_dispatch:
 
 jobs:
   build:
@@ -43,6 +43,10 @@ jobs:
           else
             echo "debug.keystore.base64 not found. Gradle will generate a default debug keystore if needed."
           fi
+
+      # --- THIS IS THE NEW STEP THAT FIXES THE CORRUPT JAR ---
+      - name: Regenerate Gradle Wrapper
+        run: jar cfe gradle/wrapper/gradle-wrapper.jar org.gradle.wrapper.GradleWrapperMain -C . . 2>/dev/null || gradle wrapper --gradle-version 8.5
 
       - name: Make Gradle Wrapper Executable
         run: |
