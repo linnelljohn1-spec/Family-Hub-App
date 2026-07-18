@@ -1,4 +1,4 @@
-package com.example.ui.screens
+package com.aistudio.familysavings.cleaninstall.ui.screens
  
 import android.app.Activity
 import android.widget.Toast
