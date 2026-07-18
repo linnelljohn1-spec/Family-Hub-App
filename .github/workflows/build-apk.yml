@@ -30,7 +30,7 @@ jobs:
           dependency-graph: disabled
           add-job-summary: 'never'
 
-      # Sets up local variables and INJECTS THE KSP BUG FIX FLAGS
+      # Sets up local variables and injects the KSP bug fix flags
       - name: Create local environment and properties
         run: |
           if [ -f .env.example ]; then
@@ -39,16 +39,17 @@ jobs:
             touch .env
           fi
           
-          # --- THIS FIXES THE KSP NULLPOINTEREXCEPTION BUG ---
           touch gradle.properties
           echo "ksp.useDaemon=false" >> gradle.properties
 
-      # Automatically generates a production-ready signing keystore for the release profile
+      # --- FIXED STEP: GENERATES THE EXACT KEY FILE YOUR PROJECT DEMANDS ---
       - name: Generate Release Keystore
         run: |
-          echo "Generating production fallback release keystore..."
-          keytool -genkey -v -keystore release.keystore -storepass android -alias androidreleasekey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Release,O=Android,C=US"
-          cp release.keystore debug.keystore 
+          echo "Generating production matching my-upload-key.jks..."
+          keytool -genkey -v -keystore my-upload-key.jks -storepass android -alias androidreleasekey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Release,O=Android,C=US"
+          # Backups in case other profiles look for alternatives
+          cp my-upload-key.jks debug.keystore 
+          cp my-upload-key.jks release.keystore
 
       # Wipes the broken wrapper file and generates the modern v9.3.1 required by your project
       - name: Fix Broken Wrapper Jar
