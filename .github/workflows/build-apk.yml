@@ -30,7 +30,7 @@ jobs:
           dependency-graph: disabled
           add-job-summary: 'never'
 
-      # Sets up local variables and injects the KSP bug fix flags
+      # Sets up local variables and forcefully patches the KSP multi-threading bug
       - name: Create local environment and properties
         run: |
           if [ -f .env.example ]; then
@@ -39,8 +39,11 @@ jobs:
             touch .env
           fi
           
+          # Ultimate patch for KSP compiler crashes
           touch gradle.properties
           echo "ksp.useDaemon=false" >> gradle.properties
+          echo "ksp.incremental=false" >> gradle.properties
+          echo "org.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8" >> gradle.properties
 
       # Generates the production-ready signing keystore
       - name: Generate Release Keystore
@@ -66,7 +69,7 @@ jobs:
             chmod +x gradlew
           fi
 
-      # --- FIXED STEP: INJECTS THE SIGNING PASSWORDS DIRECTLY VIA COMMAND LINE ---
+      # Compiles the optimized Release version of your app with explicit memory allocations
       - name: Build Release APK
         run: |
           SIGNING_FLAGS="-Pandroid.injected.signing.store.file=$(pwd)/my-upload-key.jks -Pandroid.injected.signing.store.password=android -Pandroid.injected.signing.key.alias=androidreleasekey -Pandroid.injected.signing.key.password=android"
@@ -77,12 +80,16 @@ jobs:
             gradle assembleRelease $SIGNING_FLAGS
           fi
 
-      # Saves and exposes the finished Release APK for download
+      # --- NEW STEP: FLATTENS THE FOLDER STRUCTURE ---
+      - name: Prepare APK for Flat Upload
+        run: |
+          mkdir -p apk-output
+          # Finds all generated APK files and copies them directly into our new flat folder
+          find . -name "*.apk" -exec cp {} apk-output/ \;
+
+      # Saves and exposes the finished Release APK directly at the zip root
       - name: Upload Release APK
         uses: actions/upload-artifact@v4
         with:
           name: app-release-apk
-          path: |
-            app/build/outputs/apk/release/app-release.apk
-            app/build/outputs/apk/release/app-release-unsigned.apk
-            **/build/outputs/apk/release/*.apk
+          path: apk-output/
