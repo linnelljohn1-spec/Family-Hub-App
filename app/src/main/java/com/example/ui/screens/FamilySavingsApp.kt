@@ -113,11 +113,18 @@ fun FamilySavingsApp(viewModel: SavingsViewModel) {
                     viewModel = viewModel,
                     onNavigateToSavings = { activeScreen = "savings" },
                     onNavigateToCalendar = { activeScreen = "calendar" },
+                    onNavigateToTasks = { activeScreen = "tasks" },
                     onSwitchProfileClick = { showSwitchProfileDialog = true }
                 )
             }
             "calendar" -> {
                 CalendarScreen(
+                    viewModel = viewModel,
+                    onNavigateBack = { activeScreen = "hub" }
+                )
+            }
+            "tasks" -> {
+                TasksScreen(
                     viewModel = viewModel,
                     onNavigateBack = { activeScreen = "hub" }
                 )

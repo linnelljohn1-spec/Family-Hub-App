@@ -5,5 +5,6 @@ data class SyncPayload(
     val goals: List<SavingsGoal>,
     val contributions: List<Contribution>,
     val events: List<CalendarEvent>,
+    val tasks: List<FamilyTask> = emptyList(),
     val lastUpdated: Long
 )

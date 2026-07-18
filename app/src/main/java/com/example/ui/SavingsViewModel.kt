@@ -48,6 +48,7 @@ data class MonthlyReport(
 class SavingsViewModel(application: Application) : AndroidViewModel(application) {
     private val repository: SavingsRepository = SavingsRepository(AppDatabase.getDatabase(application).savingsDao())
     private val calendarRepository: CalendarRepository = CalendarRepository(AppDatabase.getDatabase(application).calendarDao())
+    private val taskRepository: TaskRepository = TaskRepository(AppDatabase.getDatabase(application).taskDao())
 
     private val _activeMemberId = MutableStateFlow<Int>(-1)
     val activeMemberId: StateFlow<Int> = _activeMemberId.asStateFlow()
@@ -114,6 +115,7 @@ class SavingsViewModel(application: Application) : AndroidViewModel(application)
                         goals = repository.allGoals.first(),
                         contributions = repository.allContributions.first(),
                         events = calendarRepository.allEvents.first(),
+                        tasks = taskRepository.allTasks.first(),
                         lastUpdated = System.currentTimeMillis()
                     )
                     SyncService.updateSyncPayload(code, payload)
@@ -139,6 +141,9 @@ class SavingsViewModel(application: Application) : AndroidViewModel(application)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val calendarEvents: StateFlow<List<CalendarEvent>> = calendarRepository.allEvents
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val tasks: StateFlow<List<FamilyTask>> = taskRepository.allTasks
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     init {
@@ -186,6 +191,23 @@ class SavingsViewModel(application: Application) : AndroidViewModel(application)
                     calendarRepository.insertEvent(CalendarEvent(title = "Summer Camp Orientation", description = "Jordan's camp instructions and packing list check.", date = "2026-07-10", time = "09:30", category = "Reminder", createdByMemberId = jordanId))
                     calendarRepository.insertEvent(CalendarEvent(title = "Concert Night! 🎸", description = "Taylor's concert at the Arena.", date = "2026-07-15", time = "19:00", category = "Family Outing", createdByMemberId = taylorId))
                     calendarRepository.insertEvent(CalendarEvent(title = "Family Vacation Starts! ✈️", description = "Packing bags and leaving for the beach resort.", date = "2026-07-20", time = "06:00", category = "Family Outing", createdByMemberId = -1))
+                }
+            }
+        }
+
+        // Prepopulate tasks if empty
+        viewModelScope.launch {
+            taskRepository.allTasks.first().let { currentTasks ->
+                if (currentTasks.isEmpty()) {
+                    val memberList = repository.allMembers.first()
+                    val alexId = memberList.find { it.name == "Alex" }?.id ?: -1
+                    val jordanId = memberList.find { it.name == "Jordan" }?.id ?: -1
+                    val taylorId = memberList.find { it.name == "Taylor" }?.id ?: -1
+
+                    taskRepository.insertTask(FamilyTask(title = "Wash the dishes 🍽️", description = "Load the dishwasher and clean the pans after dinner.", assignedMemberId = alexId))
+                    taskRepository.insertTask(FamilyTask(title = "Vacuum the living room 🧹", description = "Make sure to clean under the couch and empty the bin afterwards.", assignedMemberId = jordanId))
+                    taskRepository.insertTask(FamilyTask(title = "Take out the trash ♻️", description = "Empty the kitchen trash and recycling bins into the main wheelie bins.", assignedMemberId = taylorId))
+                    taskRepository.insertTask(FamilyTask(title = "Walk the dog 🐕", description = "Take Buster for a 20 minute walk around the park.", assignedMemberId = -1))
                 }
             }
         }
@@ -531,6 +553,7 @@ class SavingsViewModel(application: Application) : AndroidViewModel(application)
 
                 repository.clearAll()
                 calendarRepository.clearAll()
+                taskRepository.clearAll()
 
                 repository.insertAll(
                     remotePayload.members,
@@ -538,6 +561,7 @@ class SavingsViewModel(application: Application) : AndroidViewModel(application)
                     remotePayload.contributions
                 )
                 calendarRepository.insertAll(remotePayload.events)
+                taskRepository.insertAll(remotePayload.tasks)
 
                 _syncGroupCode.value = trimmed
                 _lastSyncedTime.value = remotePayload.lastUpdated
@@ -585,6 +609,7 @@ class SavingsViewModel(application: Application) : AndroidViewModel(application)
                 if (remotePayload.lastUpdated > localLastSynced) {
                     repository.clearAll()
                     calendarRepository.clearAll()
+                    taskRepository.clearAll()
 
                     repository.insertAll(
                         remotePayload.members,
@@ -592,6 +617,7 @@ class SavingsViewModel(application: Application) : AndroidViewModel(application)
                         remotePayload.contributions
                     )
                     calendarRepository.insertAll(remotePayload.events)
+                    taskRepository.insertAll(remotePayload.tasks)
 
                     _lastSyncedTime.value = remotePayload.lastUpdated
                     _syncStatus.value = SyncStatus.SUCCESS
@@ -605,6 +631,7 @@ class SavingsViewModel(application: Application) : AndroidViewModel(application)
                         goals = repository.allGoals.first(),
                         contributions = repository.allContributions.first(),
                         events = calendarRepository.allEvents.first(),
+                        tasks = taskRepository.allTasks.first(),
                         lastUpdated = System.currentTimeMillis()
                     )
                     SyncService.updateSyncPayload(code, localPayload)
@@ -671,6 +698,7 @@ class SavingsViewModel(application: Application) : AndroidViewModel(application)
 
                 repository.clearAll()
                 calendarRepository.clearAll()
+                taskRepository.clearAll()
 
                 repository.insertAll(
                     remotePayload.members,
@@ -678,6 +706,7 @@ class SavingsViewModel(application: Application) : AndroidViewModel(application)
                     remotePayload.contributions
                 )
                 calendarRepository.insertAll(remotePayload.events)
+                taskRepository.insertAll(remotePayload.tasks)
 
                 _lastSyncedTime.value = remotePayload.lastUpdated
                 _syncStatus.value = SyncStatus.SUCCESS
@@ -739,6 +768,27 @@ class SavingsViewModel(application: Application) : AndroidViewModel(application)
         } catch (e: Exception) {
             e.printStackTrace()
             false
+        }
+    }
+
+    fun addTask(title: String, description: String, assignedMemberId: Int, dueDate: String = "") {
+        viewModelScope.launch {
+            taskRepository.insertTask(FamilyTask(title = title, description = description, assignedMemberId = assignedMemberId, dueDate = dueDate))
+            triggerAutoSync()
+        }
+    }
+
+    fun completeTask(task: FamilyTask) {
+        viewModelScope.launch {
+            taskRepository.updateTask(task.copy(isCompleted = true))
+            triggerAutoSync()
+        }
+    }
+
+    fun deleteTask(task: FamilyTask) {
+        viewModelScope.launch {
+            taskRepository.deleteTask(task)
+            triggerAutoSync()
         }
     }
 }

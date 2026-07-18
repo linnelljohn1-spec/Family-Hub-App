@@ -6,13 +6,14 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 
 @Database(
-    entities = [FamilyMember::class, SavingsGoal::class, Contribution::class, CalendarEvent::class],
-    version = 8,
+    entities = [FamilyMember::class, SavingsGoal::class, Contribution::class, CalendarEvent::class, FamilyTask::class],
+    version = 9,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun savingsDao(): SavingsDao
     abstract fun calendarDao(): CalendarDao
+    abstract fun taskDao(): TaskDao
 
     companion object {
         @Volatile
