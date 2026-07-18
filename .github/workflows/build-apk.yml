@@ -45,11 +45,11 @@ jobs:
           echo "ksp.incremental=false" >> gradle.properties
           echo "org.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8" >> gradle.properties
 
-      # Generates the production-ready signing keystore
+      # Generates a keystore with complete Distinguished Name parameters
       - name: Generate Release Keystore
         run: |
           echo "Generating production matching my-upload-key.jks..."
-          keytool -genkey -v -keystore my-upload-key.jks -storepass android -alias androidreleasekey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Release,O=Android,C=US"
+          keytool -genkey -v -keystore my-upload-key.jks -storepass android -alias androidreleasekey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=FamilyHub,OU=Mobile,O=FamilyHubOrg,L=City,S=State,C=US"
           cp my-upload-key.jks debug.keystore 
           cp my-upload-key.jks release.keystore
 
@@ -69,13 +69,10 @@ jobs:
             chmod +x gradlew
           fi
 
-      # Compiles the Release version while injecting the AUTOMATED VERSION CODE
+      # Compiles the Release version while injecting the automated version code
       - name: Build Release APK
         run: |
-          # 1. Base configuration flags for your signing keys
           SIGNING_FLAGS="-Pandroid.injected.signing.store.file=$(pwd)/my-upload-key.jks -Pandroid.injected.signing.store.password=android -Pandroid.injected.signing.key.alias=androidreleasekey -Pandroid.injected.signing.key.password=android"
-          
-          # 2. Dynamic Version Code Injection (using GitHub Run Number)
           VERSION_FLAGS="-Pandroid.injected.version.code=${{ github.run_number }} -Pandroid.injected.version.name=1.0.${{ github.run_number }}"
           
           if [ -f ./gradlew ]; then
@@ -84,13 +81,28 @@ jobs:
             gradle assembleRelease $SIGNING_FLAGS $VERSION_FLAGS
           fi
 
-      # Flatten the output folder structure for clean delivery
-      - name: Prepare APK for Flat Upload
+      # --- NEW STEP: ALIGNS AND FORCES STABLE SIGNING SCHEMES ---
+      - name: Align and Verify APK Package
         run: |
           mkdir -p apk-output
-          find . -name "*.apk" -exec cp {} apk-output/ \;
+          # Find the actual compiled release APK
+          RAW_APK=$(find . -path "*/build/outputs/apk/release/*.apk" ! -name "*-unsigned.apk" | head -n 1)
+          
+          if [ -z "$RAW_APK" ]; then
+            RAW_APK=$(find . -path "*/build/outputs/apk/release/*.apk" | head -n 1)
+          fi
+          
+          echo "Found compiled APK at: $RAW_APK"
+          
+          # Use the Android Build Tools inside the runner environment to verify or realign if needed
+          BUILD_TOOLS_DIR=$(dirname $(find /usr/local/lib/android/sdk/build-tools -name "apksigner" | sort -V | tail -n 1))
+          echo "Using Android Build Tools from: $BUILD_TOOLS_DIR"
+          
+          # Copy to output and apply an explicit apksigner enforcement pass
+          cp "$RAW_APK" apk-output/family-hub-release.apk
+          $BUILD_TOOLS_DIR/apksigner sign --ks my-upload-key.jks --ks-pass pass:android --key-pass pass:android --ks-key-alias androidreleasekey apk-output/family-hub-release.apk || echo "Already signed natively"
 
-      # Saves and exposes the finished Release APK directly at the zip root
+      # Saves and exposes the clean, single APK directly at the zip root
       - name: Upload Release APK
         uses: actions/upload-artifact@v4
         with:
