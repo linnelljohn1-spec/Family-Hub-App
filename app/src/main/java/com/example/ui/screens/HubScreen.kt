@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.*
 import com.example.ui.*
+import com.example.ui.theme.*
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.*
@@ -92,7 +93,7 @@ fun HubScreen(
                     // Cloud Sync Action
                     val isConnected by viewModel.isConnected.collectAsStateWithLifecycle()
                     val syncIcon = if (isConnected) Icons.Default.Cloud else Icons.Default.CloudQueue
-                    val syncTint = if (isConnected) Color(0xFF2E7D32) else MaterialTheme.colorScheme.onSurfaceVariant
+                    val syncTint = if (isConnected) AppTheme.extendedColors.success else MaterialTheme.colorScheme.onSurfaceVariant
 
                     IconButton(
                         onClick = { showSyncDialog = true },
@@ -111,7 +112,7 @@ fun HubScreen(
                             .padding(end = 16.dp)
                             .size(36.dp)
                             .clip(CircleShape)
-                            .background(activeMember?.let { parseColorHex(it.avatarColorHex) } ?: Color(0xFF6750A4))
+                            .background(activeMember?.let { parseColorHex(it.avatarColorHex) } ?: MaterialTheme.colorScheme.primary)
                             .clickable { onSwitchProfileClick() }
                             .testTag("hub_profile_chip"),
                         contentAlignment = Alignment.Center
@@ -218,7 +219,7 @@ fun HubScreen(
                         Icon(
                             imageVector = Icons.Default.Event,
                             contentDescription = null,
-                            tint = Color(0xFFD81B60) // Custom warm pink for calendar
+                            tint = FeatureColors.calendar
                         )
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
@@ -248,7 +249,7 @@ fun HubScreen(
                         Icon(
                             imageVector = Icons.Default.CheckCircle,
                             contentDescription = null,
-                            tint = Color(0xFF1976D2) // Custom blue for tasks
+                            tint = FeatureColors.tasks
                         )
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
@@ -296,13 +297,13 @@ fun HubScreen(
                         modifier = Modifier
                             .size(56.dp)
                             .clip(RoundedCornerShape(12.dp))
-                            .background(Color(0xFFE8F5E9)), // Soft green background
+                            .background(FeatureColors.savingsContainer),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = Icons.Default.TrendingUp,
                             contentDescription = null,
-                            tint = Color(0xFF2E7D32),
+                            tint = FeatureColors.savings,
                             modifier = Modifier.size(28.dp)
                         )
                     }
@@ -348,13 +349,13 @@ fun HubScreen(
                         modifier = Modifier
                             .size(56.dp)
                             .clip(RoundedCornerShape(12.dp))
-                            .background(Color(0xFFFCE4EC)), // Soft pink background
+                            .background(FeatureColors.calendarContainer),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = Icons.Default.CalendarMonth,
                             contentDescription = null,
-                            tint = Color(0xFFC2185B),
+                            tint = FeatureColors.calendar,
                             modifier = Modifier.size(28.dp)
                         )
                     }
@@ -400,13 +401,13 @@ fun HubScreen(
                         modifier = Modifier
                             .size(56.dp)
                             .clip(RoundedCornerShape(12.dp))
-                            .background(Color(0xFFE3F2FD)), // Soft blue background
+                            .background(FeatureColors.tasksContainer),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = Icons.Default.CheckCircle,
                             contentDescription = null,
-                            tint = Color(0xFF1976D2),
+                            tint = FeatureColors.tasks,
                             modifier = Modifier.size(28.dp)
                         )
                     }
@@ -459,13 +460,13 @@ fun HubScreen(
                             modifier = Modifier
                                 .size(56.dp)
                                 .clip(RoundedCornerShape(12.dp))
-                                .background(Color(0xFFEDE7F6)), // Soft purple background
+                                .background(FeatureColors.chatContainer),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Chat,
                                 contentDescription = null,
-                                tint = Color(0xFF5E35B1),
+                                tint = FeatureColors.chat,
                                 modifier = Modifier.size(28.dp)
                             )
                         }
@@ -549,13 +550,7 @@ fun HubScreen(
                     Column {
                         upcomingEvents.forEachIndexed { index, event ->
                             val creator = membersWithPerformance.find { it.member.id == event.createdByMemberId }?.member
-                            val categoryColor = when (event.category) {
-                                "Family Outing" -> Color(0xFF2E7D32)
-                                "Chore" -> Color(0xFF1565C0)
-                                "Birthday" -> Color(0xFFD81B60)
-                                "Reminder" -> Color(0xFFEF6C00)
-                                else -> Color(0xFF6750A4)
-                            }
+                            val categoryColor = eventCategoryColors[event.category] ?: EventOther
 
                             Row(
                                 modifier = Modifier
@@ -627,7 +622,7 @@ fun HubScreen(
                                             Icon(
                                                 imageVector = Icons.Default.CheckCircle,
                                                 contentDescription = "Completed",
-                                                tint = Color(0xFF2E7D32),
+                                                tint = AppTheme.extendedColors.success,
                                                 modifier = Modifier.size(18.dp)
                                             )
                                         }
@@ -807,7 +802,7 @@ fun SyncDialog(
                 Card(
                     shape = RoundedCornerShape(12.dp),
                     colors = CardDefaults.cardColors(
-                        containerColor = if (syncGroupCode.isNotEmpty()) Color(0xFFE8F5E9) else MaterialTheme.colorScheme.surfaceVariant
+                        containerColor = if (syncGroupCode.isNotEmpty()) AppTheme.extendedColors.successContainer else MaterialTheme.colorScheme.surfaceVariant
                     )
                 ) {
                     Row(
@@ -818,11 +813,11 @@ fun SyncDialog(
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         if (syncGroupCode.isNotEmpty()) {
-                            Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color(0xFF2E7D32))
+                            Icon(Icons.Default.CheckCircle, contentDescription = null, tint = AppTheme.extendedColors.success)
                             Text(
                                 text = "Connected - changes sync live",
                                 style = MaterialTheme.typography.bodyMedium,
-                                color = Color(0xFF2E7D32),
+                                color = AppTheme.extendedColors.success,
                                 fontWeight = FontWeight.Bold
                             )
                         } else {
@@ -976,8 +971,8 @@ fun SyncDialog(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color(0xFF2E7D32))
-                                Text("Migration complete!", color = Color(0xFF2E7D32), fontWeight = FontWeight.Bold)
+                                Icon(Icons.Default.CheckCircle, contentDescription = null, tint = AppTheme.extendedColors.success)
+                                Text("Migration complete!", color = AppTheme.extendedColors.success, fontWeight = FontWeight.Bold)
                             }
                         }
                         MigrationStatus.REFUSED_NOT_EMPTY -> {
