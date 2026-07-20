@@ -289,8 +289,9 @@ fun TaskCard(
     onDelete: () -> Unit
 ) {
     val assignedMember = members.find { it.id == task.assignedMemberId }
-    val avatarColor = remember(assignedMember) {
-        assignedMember?.avatarColorHex?.let { Color(android.graphics.Color.parseColor(it)) } ?: Color.Gray
+    val unassignedColor = MaterialTheme.colorScheme.outline
+    val avatarColor = remember(assignedMember, unassignedColor) {
+        assignedMember?.avatarColorHex?.let { Color(android.graphics.Color.parseColor(it)) } ?: unassignedColor
     }
 
     Card(
