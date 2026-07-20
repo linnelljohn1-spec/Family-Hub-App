@@ -11,5 +11,3 @@ val AppShapes = Shapes(
     large = RoundedCornerShape(20.dp),
     extraLarge = RoundedCornerShape(28.dp),
 )
-
-val PillShape = RoundedCornerShape(percent = 50)
