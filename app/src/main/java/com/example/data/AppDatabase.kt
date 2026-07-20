@@ -4,6 +4,27 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
+
+val MIGRATION_9_10 = object : Migration(9, 10) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS `chat_messages` (
+                `clientMessageId` TEXT NOT NULL,
+                `senderMemberId` INTEGER NOT NULL,
+                `senderName` TEXT NOT NULL,
+                `senderAvatarColorHex` TEXT NOT NULL,
+                `text` TEXT NOT NULL,
+                `timestamp` INTEGER NOT NULL,
+                `syncGroupCode` TEXT NOT NULL,
+                PRIMARY KEY(`clientMessageId`)
+            )
+            """.trimIndent()
+        )
+    }
+}
 
 @Database(
     entities = [FamilyMember::class, SavingsGoal::class, Contribution::class, CalendarEvent::class, FamilyTask::class, ChatMessage::class],
@@ -28,6 +49,7 @@ abstract class AppDatabase : RoomDatabase() {
                     "family_savings_db"
                 )
                 .setJournalMode(RoomDatabase.JournalMode.TRUNCATE)
+                .addMigrations(MIGRATION_9_10)
                 .fallbackToDestructiveMigration()
                 .build()
                 INSTANCE = instance
