@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.TypeConverters
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
@@ -42,16 +43,53 @@ val MIGRATION_10_11 = object : Migration(10, 11) {
     }
 }
 
+val MIGRATION_11_12 = object : Migration(11, 12) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS `polls` (
+                `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                `question` TEXT NOT NULL,
+                `options` TEXT NOT NULL,
+                `createdByMemberId` INTEGER NOT NULL,
+                `createdAt` INTEGER NOT NULL,
+                `isClosed` INTEGER NOT NULL,
+                `firestoreId` TEXT
+            )
+            """.trimIndent()
+        )
+        db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_polls_firestoreId ON polls(firestoreId)")
+
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS `poll_votes` (
+                `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                `pollId` INTEGER NOT NULL,
+                `memberId` INTEGER NOT NULL,
+                `optionIndex` INTEGER NOT NULL,
+                `votedAt` INTEGER NOT NULL,
+                `firestoreId` TEXT,
+                FOREIGN KEY(`pollId`) REFERENCES `polls`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
+            )
+            """.trimIndent()
+        )
+        db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_poll_votes_pollId_memberId ON poll_votes(pollId, memberId)")
+        db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_poll_votes_firestoreId ON poll_votes(firestoreId)")
+    }
+}
+
 @Database(
-    entities = [FamilyMember::class, SavingsGoal::class, Contribution::class, CalendarEvent::class, FamilyTask::class, ChatMessage::class],
-    version = 11,
+    entities = [FamilyMember::class, SavingsGoal::class, Contribution::class, CalendarEvent::class, FamilyTask::class, ChatMessage::class, Poll::class, PollVote::class],
+    version = 12,
     exportSchema = false
 )
+@TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun savingsDao(): SavingsDao
     abstract fun calendarDao(): CalendarDao
     abstract fun taskDao(): TaskDao
     abstract fun chatDao(): ChatDao
+    abstract fun pollDao(): PollDao
 
     companion object {
         @Volatile
@@ -65,7 +103,7 @@ abstract class AppDatabase : RoomDatabase() {
                     "family_savings_db"
                 )
                 .setJournalMode(RoomDatabase.JournalMode.TRUNCATE)
-                .addMigrations(MIGRATION_9_10, MIGRATION_10_11)
+                .addMigrations(MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12)
                 .fallbackToDestructiveMigration()
                 .build()
                 INSTANCE = instance

@@ -57,6 +57,8 @@ val ChatAccent = Color(0xFF8C5B7A)
 val ChatAccentContainer = Color(0xFFF0DFEA)
 val SavingsAccent = SuccessLight
 val SavingsAccentContainer = SuccessContainerLight
+val PollsAccent = Amber40
+val PollsAccentContainer = AmberContainer90
 
 // Calendar event-category colors (harmonized with the warm palette)
 val EventFamilyOuting = Sage40
