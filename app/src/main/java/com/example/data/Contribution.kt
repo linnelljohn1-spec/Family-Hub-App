@@ -15,12 +15,13 @@ import androidx.room.PrimaryKey
             onDelete = ForeignKey.CASCADE
         )
     ],
-    indices = [Index(value = ["goalId"])]
+    indices = [Index(value = ["goalId"]), Index(value = ["firestoreId"], unique = true)]
 )
 data class Contribution(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
     val goalId: Int,
     val amount: Double,
     val timestamp: Long = System.currentTimeMillis(),
-    val note: String? = null
+    val note: String? = null,
+    val firestoreId: String? = null
 )

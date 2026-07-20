@@ -13,6 +13,9 @@ interface SavingsDao {
     @Query("SELECT * FROM family_members ORDER BY name ASC")
     fun getAllMembers(): Flow<List<FamilyMember>>
 
+    @Query("SELECT * FROM family_members WHERE firestoreId = :firestoreId LIMIT 1")
+    suspend fun getMemberByFirestoreId(firestoreId: String): FamilyMember?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertMember(member: FamilyMember): Long
 
@@ -28,6 +31,9 @@ interface SavingsDao {
     @Query("SELECT * FROM savings_goals")
     fun getAllGoals(): Flow<List<SavingsGoal>>
 
+    @Query("SELECT * FROM savings_goals WHERE firestoreId = :firestoreId LIMIT 1")
+    suspend fun getGoalByFirestoreId(firestoreId: String): SavingsGoal?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertGoal(goal: SavingsGoal): Long
 
@@ -42,6 +48,9 @@ interface SavingsDao {
 
     @Query("SELECT * FROM contributions ORDER BY timestamp DESC")
     fun getAllContributions(): Flow<List<Contribution>>
+
+    @Query("SELECT * FROM contributions WHERE firestoreId = :firestoreId LIMIT 1")
+    suspend fun getContributionByFirestoreId(firestoreId: String): Contribution?
 
     @Query("DELETE FROM contributions")
     suspend fun clearContributions()

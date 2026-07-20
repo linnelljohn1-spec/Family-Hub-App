@@ -15,6 +15,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
 import com.example.notifications.NotificationHelper
 import com.example.ui.ChatViewModel
+import com.example.ui.FamilyDataSyncViewModel
 import com.example.ui.SavingsViewModel
 import com.example.ui.screens.FamilySavingsApp
 import com.example.ui.theme.MyApplicationTheme
@@ -23,6 +24,7 @@ import com.example.R
 class MainActivity : ComponentActivity() {
   private val viewModel: SavingsViewModel by viewModels()
   private val chatViewModel: ChatViewModel by viewModels()
+  private val familyDataSyncViewModel: FamilyDataSyncViewModel by viewModels()
 
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
@@ -45,7 +47,7 @@ class MainActivity : ComponentActivity() {
           }
         }
 
-        FamilySavingsApp(viewModel = viewModel, chatViewModel = chatViewModel)
+        FamilySavingsApp(viewModel = viewModel, chatViewModel = chatViewModel, familyDataSyncViewModel = familyDataSyncViewModel)
       }
     }
   }
