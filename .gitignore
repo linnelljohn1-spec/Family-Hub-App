@@ -11,8 +11,11 @@
 .DS_Store
 /build
 /captures
+.vs/
 .externalNativeBuild
 .cxx
 local.properties
 .env
 debug.keystore
+*.jks
+*.keystore
