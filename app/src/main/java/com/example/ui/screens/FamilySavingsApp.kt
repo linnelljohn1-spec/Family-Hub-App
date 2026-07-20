@@ -2394,6 +2394,7 @@ fun getEmojiForGoal(title: String): String {
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun SavingsGoalCard(
     goalItem: GoalWithProgress,
