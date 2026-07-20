@@ -2615,21 +2615,25 @@ fun SavingsGoalCard(
             }
 
             // Bottom Actions Bar
-            Row(
+            FlowRow(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 // Expand Contributions Button
                 TextButton(
                     onClick = { isExpanded = !isExpanded },
-                    contentPadding = PaddingValues(0.dp)
+                    contentPadding = PaddingValues(0.dp),
+                    modifier = Modifier.weight(1f, fill = false)
                 ) {
                     Text(
-                        text = if (isExpanded) "Hide Deposits" else "View Deposits (${goalItem.contributions.size})",
+                        text = if (isExpanded) "Hide" else "Deposits (${goalItem.contributions.size})",
                         style = MaterialTheme.typography.bodyMedium,
                         color = Color(0xFF6750A4),
-                        fontWeight = FontWeight.SemiBold
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Ellipsis
                     )
                     Icon(
                         imageVector = if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
@@ -2642,14 +2646,14 @@ fun SavingsGoalCard(
                 // Withdraw and Deposit buttons (Capsule shaped buttons matching member profile color)
                 if (canDepositToGoal) {
                     Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         OutlinedButton(
                             onClick = onWithdrawClick,
                             border = BorderStroke(1.dp, memberColor),
                             colors = ButtonDefaults.outlinedButtonColors(contentColor = memberColor),
-                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
                             shape = RoundedCornerShape(24.dp),
                             modifier = Modifier
                                 .height(36.dp)
@@ -2661,7 +2665,7 @@ fun SavingsGoalCard(
                         Button(
                             onClick = onDepositClick,
                             colors = ButtonDefaults.buttonColors(containerColor = memberColor),
-                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
                             shape = RoundedCornerShape(24.dp),
                             modifier = Modifier
                                 .height(36.dp)
