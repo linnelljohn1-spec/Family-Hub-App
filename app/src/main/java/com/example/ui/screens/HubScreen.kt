@@ -234,12 +234,10 @@ fun HubScreen(
                 )
             }
 
-            val hubModulesPerRow = 5
-
-            hubModules.chunked(hubModulesPerRow).forEach { rowModules ->
+            hubModules.chunked(3).forEach { rowModules ->
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     rowModules.forEach { module ->
                         Card(
@@ -248,7 +246,7 @@ fun HubScreen(
                                 .weight(1f)
                                 .aspectRatio(1f)
                                 .testTag(module.testTag),
-                            shape = RoundedCornerShape(12.dp),
+                            shape = RoundedCornerShape(20.dp),
                             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                             elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
                             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
@@ -256,7 +254,7 @@ fun HubScreen(
                             Column(
                                 modifier = Modifier
                                     .fillMaxSize()
-                                    .padding(4.dp),
+                                    .padding(8.dp),
                                 horizontalAlignment = Alignment.CenterHorizontally,
                                 verticalArrangement = Arrangement.Center
                             ) {
@@ -269,8 +267,8 @@ fun HubScreen(
                                 ) {
                                     Box(
                                         modifier = Modifier
-                                            .size(22.dp)
-                                            .clip(RoundedCornerShape(6.dp))
+                                            .size(44.dp)
+                                            .clip(RoundedCornerShape(12.dp))
                                             .background(module.container),
                                         contentAlignment = Alignment.Center
                                     ) {
@@ -278,24 +276,23 @@ fun HubScreen(
                                             imageVector = module.icon,
                                             contentDescription = null,
                                             tint = module.accent,
-                                            modifier = Modifier.size(13.dp)
+                                            modifier = Modifier.size(24.dp)
                                         )
                                     }
                                 }
-                                Spacer(modifier = Modifier.height(3.dp))
+                                Spacer(modifier = Modifier.height(6.dp))
                                 Text(
                                     text = module.label,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontSize = 9.sp,
+                                    style = MaterialTheme.typography.labelMedium,
                                     fontWeight = FontWeight.Bold,
                                     textAlign = TextAlign.Center,
-                                    maxLines = 1,
+                                    maxLines = 2,
                                     overflow = TextOverflow.Ellipsis
                                 )
                             }
                         }
                     }
-                    repeat(hubModulesPerRow - rowModules.size) {
+                    repeat(3 - rowModules.size) {
                         Spacer(modifier = Modifier.weight(1f))
                     }
                 }
