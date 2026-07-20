@@ -26,6 +26,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.*
 import com.example.ui.*
+import com.example.ui.theme.*
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -154,7 +155,7 @@ fun CalendarScreen(
             FloatingActionButton(
                 onClick = { showAddEventDialog = true },
                 containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = Color.White,
+                contentColor = MaterialTheme.colorScheme.onPrimary,
                 modifier = Modifier.testTag("fab_add_event")
             ) {
                 Icon(imageVector = Icons.Default.Event, contentDescription = "Schedule Event")
@@ -330,7 +331,7 @@ fun CalendarScreen(
                                                     text = dayNum.toString(),
                                                     fontSize = 13.sp,
                                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                                    color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface
+                                                    color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
                                                 )
 
                                                 // Event indicator
@@ -340,7 +341,7 @@ fun CalendarScreen(
                                                         modifier = Modifier
                                                             .size(4.dp)
                                                             .background(
-                                                                if (isSelected) Color.White else MaterialTheme.colorScheme.primary,
+                                                                if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.primary,
                                                                 CircleShape
                                                             )
                                                     )
@@ -392,16 +393,16 @@ fun CalendarScreen(
                                     text = dayName,
                                     fontSize = 10.sp,
                                     fontWeight = FontWeight.SemiBold,
-                                    color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
+                                    color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                                 Spacer(modifier = Modifier.height(4.dp))
                                 Text(
                                     text = dayNum.toString(),
                                     fontSize = 16.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface
+                                    color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
                                 )
-                                
+
                                 // Visual indicator for events on this day
                                 val eventsOnDay = calendarEvents.any { it.date == dateStr }
                                 if (eventsOnDay) {
@@ -410,7 +411,7 @@ fun CalendarScreen(
                                             .padding(top = 4.dp)
                                             .size(4.dp)
                                             .background(
-                                                if (isSelected) Color.White else MaterialTheme.colorScheme.primary,
+                                                if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.primary,
                                                 CircleShape
                                             )
                                     )
@@ -549,13 +550,7 @@ fun CalendarScreen(
                 ) {
                     items(filteredEvents) { event ->
                         val creator = membersWithPerformance.find { it.member.id == event.createdByMemberId }?.member
-                        val categoryColor = when (event.category) {
-                            "Family Outing" -> Color(0xFF2E7D32)
-                            "Chore" -> Color(0xFF1565C0)
-                            "Birthday" -> Color(0xFFD81B60)
-                            "Reminder" -> Color(0xFFEF6C00)
-                            else -> Color(0xFF6750A4)
-                        }
+                        val categoryColor = eventCategoryColors[event.category] ?: EventOther
 
                         val cardBg = if (event.isCompleted) {
                             MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
@@ -732,7 +727,7 @@ fun CalendarScreen(
                                             modifier = Modifier
                                                 .size(24.dp)
                                                 .clip(CircleShape)
-                                                .background(creator?.let { parseColorHex(it.avatarColorHex) } ?: Color.Gray),
+                                                .background(creator?.let { parseColorHex(it.avatarColorHex) } ?: MaterialTheme.colorScheme.outline),
                                             contentAlignment = Alignment.Center
                                         ) {
                                             Text(
@@ -1320,7 +1315,7 @@ fun CalendarScreen(
                                                 text = dayNum.toString(),
                                                 fontSize = 12.sp,
                                                 fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal,
-                                                color = if (isSel) Color.White else MaterialTheme.colorScheme.onSurface
+                                                color = if (isSel) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
                                             )
                                         }
                                     }
@@ -1922,7 +1917,7 @@ fun CalendarScreen(
                                                 text = dayNum.toString(),
                                                 fontSize = 12.sp,
                                                 fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal,
-                                                color = if (isSel) Color.White else MaterialTheme.colorScheme.onSurface
+                                                color = if (isSel) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
                                             )
                                         }
                                     }

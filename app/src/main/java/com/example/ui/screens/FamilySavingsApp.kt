@@ -37,6 +37,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.R
 import com.example.data.*
 import com.example.ui.*
+import com.example.ui.theme.*
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.*
@@ -46,7 +47,7 @@ fun parseColorHex(hex: String): Color {
     return try {
         Color(android.graphics.Color.parseColor(hex))
     } catch (e: Exception) {
-        Color(0xFF6750A4) // Default primary purple
+        Terracotta40 // Default primary fallback
     }
 }
 
@@ -183,7 +184,7 @@ fun FamilySavingsApp(viewModel: SavingsViewModel, chatViewModel: ChatViewModel, 
                                         Text(
                                             text = if (member.isAdmin) "Admin: ${member.name}" else "User: ${member.name}",
                                             style = MaterialTheme.typography.labelSmall,
-                                            color = if (member.isAdmin) Color(0xFF6750A4) else Color(0xFF2E7D32),
+                                            color = if (member.isAdmin) MaterialTheme.colorScheme.primary else AppTheme.extendedColors.success,
                                             fontWeight = FontWeight.Bold
                                         )
                                     }
@@ -220,7 +221,7 @@ fun FamilySavingsApp(viewModel: SavingsViewModel, chatViewModel: ChatViewModel, 
                                         .padding(end = 16.dp)
                                         .size(36.dp)
                                         .clip(CircleShape)
-                                        .background(activeMember?.let { parseColorHex(it.avatarColorHex) } ?: Color(0xFF6750A4))
+                                        .background(activeMember?.let { parseColorHex(it.avatarColorHex) } ?: MaterialTheme.colorScheme.primary)
                                         .clickable { showSwitchProfileDialog = true },
                                     contentAlignment = Alignment.Center
                                 ) {
@@ -281,11 +282,11 @@ fun FamilySavingsApp(viewModel: SavingsViewModel, chatViewModel: ChatViewModel, 
                                             modifier = Modifier
                                                 .clip(CircleShape)
                                                 .background(
-                                                    if (isAllSelected) Color(0xFFEADDFF) else Color(0xFFF3EDF7)
+                                                    if (isAllSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.secondaryContainer
                                                 )
                                                 .border(
                                                     width = 1.dp,
-                                                    color = if (isAllSelected) Color.Transparent else Color(0xFFCAC4D0),
+                                                    color = if (isAllSelected) Color.Transparent else MaterialTheme.colorScheme.outline,
                                                     shape = CircleShape
                                                 )
                                                 .clickable { selectedFamilyTabId = -1 }
@@ -294,7 +295,7 @@ fun FamilySavingsApp(viewModel: SavingsViewModel, chatViewModel: ChatViewModel, 
                                         ) {
                                             Text(
                                                 text = "All Members",
-                                                color = if (isAllSelected) Color(0xFF21005D) else Color(0xFF49454F),
+                                                color = if (isAllSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
                                                 fontSize = 14.sp,
                                                 fontWeight = FontWeight.Bold
                                             )
@@ -306,11 +307,11 @@ fun FamilySavingsApp(viewModel: SavingsViewModel, chatViewModel: ChatViewModel, 
                                             modifier = Modifier
                                                 .clip(CircleShape)
                                                 .background(
-                                                    if (isPurchasedSelected) Color(0xFFEADDFF) else Color(0xFFF3EDF7)
+                                                    if (isPurchasedSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.secondaryContainer
                                                 )
                                                 .border(
                                                     width = 1.dp,
-                                                    color = if (isPurchasedSelected) Color.Transparent else Color(0xFFCAC4D0),
+                                                    color = if (isPurchasedSelected) Color.Transparent else MaterialTheme.colorScheme.outline,
                                                     shape = CircleShape
                                                 )
                                                 .clickable { selectedFamilyTabId = -2 }
@@ -325,12 +326,12 @@ fun FamilySavingsApp(viewModel: SavingsViewModel, chatViewModel: ChatViewModel, 
                                                 Icon(
                                                     imageVector = Icons.Default.CheckCircle,
                                                     contentDescription = null,
-                                                    tint = if (isPurchasedSelected) Color(0xFF21005D) else Color(0xFF49454F),
+                                                    tint = if (isPurchasedSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
                                                     modifier = Modifier.size(16.dp)
                                                 )
                                                 Text(
                                                     text = "Purchased",
-                                                    color = if (isPurchasedSelected) Color(0xFF21005D) else Color(0xFF49454F),
+                                                    color = if (isPurchasedSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
                                                     fontSize = 14.sp,
                                                     fontWeight = FontWeight.Bold
                                                 )
@@ -344,11 +345,11 @@ fun FamilySavingsApp(viewModel: SavingsViewModel, chatViewModel: ChatViewModel, 
                                                 modifier = Modifier
                                                     .clip(CircleShape)
                                                     .background(
-                                                        if (isSelected) Color(0xFFEADDFF) else Color(0xFFF3EDF7)
+                                                        if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.secondaryContainer
                                                     )
                                                     .border(
                                                         width = 1.dp,
-                                                        color = if (isSelected) Color.Transparent else Color(0xFFCAC4D0),
+                                                        color = if (isSelected) Color.Transparent else MaterialTheme.colorScheme.outline,
                                                         shape = CircleShape
                                                     )
                                                     .clickable { selectedFamilyTabId = item.member.id }
@@ -369,7 +370,7 @@ fun FamilySavingsApp(viewModel: SavingsViewModel, chatViewModel: ChatViewModel, 
                                                     )
                                                     Text(
                                                         text = item.member.name,
-                                                        color = if (isSelected) Color(0xFF21005D) else Color(0xFF49454F),
+                                                        color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
                                                         fontSize = 14.sp,
                                                         fontWeight = FontWeight.Medium
                                                     )
@@ -382,10 +383,10 @@ fun FamilySavingsApp(viewModel: SavingsViewModel, chatViewModel: ChatViewModel, 
                                             modifier = Modifier
                                                 .size(40.dp)
                                                 .clip(CircleShape)
-                                                .background(Color(0xFFF3EDF7))
+                                                .background(MaterialTheme.colorScheme.secondaryContainer)
                                                 .border(
                                                     width = 1.dp,
-                                                    color = Color(0xFF6750A4),
+                                                    color = MaterialTheme.colorScheme.primary,
                                                     shape = CircleShape
                                                 )
                                                 .clickable { showAddMemberDialog = true },
@@ -394,7 +395,7 @@ fun FamilySavingsApp(viewModel: SavingsViewModel, chatViewModel: ChatViewModel, 
                                             Icon(
                                                 imageVector = Icons.Default.Add,
                                                 contentDescription = "Add Member Tab Shortcut",
-                                                tint = Color(0xFF6750A4),
+                                                tint = MaterialTheme.colorScheme.primary,
                                                 modifier = Modifier.size(18.dp)
                                             )
                                         }
@@ -575,7 +576,7 @@ fun FamilySavingsApp(viewModel: SavingsViewModel, chatViewModel: ChatViewModel, 
                             Text(
                                 text = "Can give pocket money and manage files.",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = Color.Gray
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
@@ -726,7 +727,7 @@ fun FamilySavingsApp(viewModel: SavingsViewModel, chatViewModel: ChatViewModel, 
 
         val memberPerformance = membersWithPerformance.find { it.member.id == goal.memberId }
         val walletBalance = memberPerformance?.member?.unallocatedBalance ?: 0.0
-        val memberColor = memberPerformance?.let { parseColorHex(it.member.avatarColorHex) } ?: Color(0xFF6750A4)
+        val memberColor = memberPerformance?.let { parseColorHex(it.member.avatarColorHex) } ?: MaterialTheme.colorScheme.primary
 
         Dialog(onDismissRequest = { showAddContributionDialogForGoal = null }) {
             Card(
@@ -777,7 +778,7 @@ fun FamilySavingsApp(viewModel: SavingsViewModel, chatViewModel: ChatViewModel, 
                                 Text(
                                     text = "Available Wallet Balance",
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = Color.Gray
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                                 Text(
                                     text = NumberFormat.getCurrencyInstance().format(walletBalance),
@@ -878,7 +879,7 @@ fun FamilySavingsApp(viewModel: SavingsViewModel, chatViewModel: ChatViewModel, 
     showAddWalletDialogForMemberId?.let { memberId ->
         val currentMemberItem = membersWithPerformance.find { it.member.id == memberId }
         val memberName = currentMemberItem?.member?.name ?: "Member"
-        val memberColor = currentMemberItem?.let { parseColorHex(it.member.avatarColorHex) } ?: Color(0xFF6750A4)
+        val memberColor = currentMemberItem?.let { parseColorHex(it.member.avatarColorHex) } ?: MaterialTheme.colorScheme.primary
         var walletAmountText by remember { mutableStateOf("") }
         var hasError by remember { mutableStateOf(false) }
         var isDepositMode by remember(walletDialogInitialIsDeposit) { mutableStateOf(walletDialogInitialIsDeposit) }
@@ -975,7 +976,7 @@ fun FamilySavingsApp(viewModel: SavingsViewModel, chatViewModel: ChatViewModel, 
                                 Text(
                                     text = "Current Wallet Balance",
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = Color.Gray
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                                 Text(
                                     text = NumberFormat.getCurrencyInstance().format(walletBalance),
@@ -994,7 +995,7 @@ fun FamilySavingsApp(viewModel: SavingsViewModel, chatViewModel: ChatViewModel, 
                             "Remove or deduct funds from $memberName's personal fund (e.g., if they spent it, or for correction)."
                         },
                         style = MaterialTheme.typography.bodyMedium,
-                        color = Color.Gray
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
 
                     val enteredAmount = walletAmountText.toDoubleOrNull()
@@ -1072,7 +1073,7 @@ fun FamilySavingsApp(viewModel: SavingsViewModel, chatViewModel: ChatViewModel, 
         val memberPerformance = membersWithPerformance.find { it.member.id == goal.memberId }
         val goalPerformance = memberPerformance?.goalsWithProgress?.find { it.goal.id == goal.id }
         val currentAmountSaved = goalPerformance?.currentAmount ?: 0.0
-        val memberColor = memberPerformance?.let { parseColorHex(it.member.avatarColorHex) } ?: Color(0xFF6750A4)
+        val memberColor = memberPerformance?.let { parseColorHex(it.member.avatarColorHex) } ?: MaterialTheme.colorScheme.primary
 
         Dialog(onDismissRequest = { showWithdrawDialogForGoal = null }) {
             Card(
@@ -1123,7 +1124,7 @@ fun FamilySavingsApp(viewModel: SavingsViewModel, chatViewModel: ChatViewModel, 
                                 Text(
                                     text = "Current Saved Amount",
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = Color.Gray
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                                 Text(
                                     text = NumberFormat.getCurrencyInstance().format(currentAmountSaved),
@@ -1332,7 +1333,7 @@ fun FamilySavingsApp(viewModel: SavingsViewModel, chatViewModel: ChatViewModel, 
                     Text(
                         text = "Select a family member's profile to view and allocate savings.",
                         style = MaterialTheme.typography.bodyMedium,
-                        color = Color.Gray
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
 
                     LazyColumn(
@@ -1380,12 +1381,12 @@ fun FamilySavingsApp(viewModel: SavingsViewModel, chatViewModel: ChatViewModel, 
                                         text = item.member.name,
                                         style = MaterialTheme.typography.titleMedium,
                                         fontWeight = FontWeight.Bold,
-                                        color = Color(0xFF1D1B20)
+                                        color = MaterialTheme.colorScheme.onSurface
                                     )
                                     Text(
                                         text = if (item.member.isAdmin) "Admin • Head of Family" else "Family Member",
                                         style = MaterialTheme.typography.bodySmall,
-                                        color = if (item.member.isAdmin) Color(0xFF6750A4) else Color.Gray,
+                                        color = if (item.member.isAdmin) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                                         fontWeight = if (item.member.isAdmin) FontWeight.Bold else FontWeight.Normal
                                     )
                                 }
@@ -1394,7 +1395,7 @@ fun FamilySavingsApp(viewModel: SavingsViewModel, chatViewModel: ChatViewModel, 
                                         text = NumberFormat.getCurrencyInstance().format(item.member.unallocatedBalance),
                                         style = MaterialTheme.typography.bodyMedium,
                                         fontWeight = FontWeight.Bold,
-                                        color = Color(0xFF2E7D32)
+                                        color = AppTheme.extendedColors.success
                                     )
                                 }
                             }
@@ -1439,7 +1440,7 @@ fun FamilySavingsApp(viewModel: SavingsViewModel, chatViewModel: ChatViewModel, 
                     Text(
                         text = "A password is required to switch to ${targetMember.name}'s profile.",
                         style = MaterialTheme.typography.bodyMedium,
-                        color = Color.Gray
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
 
                     OutlinedTextField(
@@ -1524,7 +1525,7 @@ fun AllMembersOverview(
             item {
                 Card(
                     colors = CardDefaults.cardColors(
-                        containerColor = Color(0xFFF3EDF7)
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant
                     ),
                     shape = RoundedCornerShape(24.dp),
                     elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
@@ -1543,7 +1544,7 @@ fun AllMembersOverview(
                                 Text(
                                     text = "SAVINGS SUMMARY",
                                     style = MaterialTheme.typography.labelMedium,
-                                    color = Color(0xFF6750A4),
+                                    color = MaterialTheme.colorScheme.primary,
                                     fontWeight = FontWeight.Bold,
                                     letterSpacing = 1.sp
                                 )
@@ -1552,13 +1553,13 @@ fun AllMembersOverview(
                                     text = NumberFormat.getCurrencyInstance().format(totalSavedCombined),
                                     style = MaterialTheme.typography.headlineLarge,
                                     fontWeight = FontWeight.ExtraBold,
-                                    color = Color(0xFF1D1B20)
+                                    color = MaterialTheme.colorScheme.onSurface
                                 )
                             }
                             
-                            // Sleek white progress badge
+                            // Sleek progress badge
                             Card(
-                                colors = CardDefaults.cardColors(containerColor = Color.White),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                                 shape = RoundedCornerShape(16.dp),
                                 elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
                                 modifier = Modifier.padding(top = 4.dp)
@@ -1571,13 +1572,13 @@ fun AllMembersOverview(
                                         text = "SAVED",
                                         fontSize = 9.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = Color.Gray
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                     Text(
                                         text = String.format("%.0f%%", combinedProgress * 100),
                                         fontSize = 14.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = Color(0xFF2E7D32)
+                                        color = AppTheme.extendedColors.success
                                     )
                                 }
                             }
@@ -1586,7 +1587,7 @@ fun AllMembersOverview(
                         Text(
                             text = "You are ${String.format("%.0f%%", combinedProgress * 100)} towards your monthly family contribution target.",
                             style = MaterialTheme.typography.bodyMedium,
-                            color = Color(0xFF49454F)
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
 
                         LinearProgressIndicator(
@@ -1595,14 +1596,14 @@ fun AllMembersOverview(
                                 .fillMaxWidth()
                                 .height(12.dp)
                                 .clip(RoundedCornerShape(6.dp)),
-                            color = Color(0xFF6750A4),
-                            trackColor = Color.White
+                            color = MaterialTheme.colorScheme.primary,
+                            trackColor = MaterialTheme.colorScheme.surface
                         )
                         
                         Text(
                             text = "Combined target: ${NumberFormat.getCurrencyInstance().format(totalTargetCombined)}",
                             style = MaterialTheme.typography.bodySmall,
-                            color = Color(0xFF49454F).copy(alpha = 0.8f),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
                             fontWeight = FontWeight.Medium
                         )
                     }
@@ -1678,9 +1679,9 @@ fun AllMembersOverview(
                         .fillMaxWidth()
                         .clickable { onSelectMember(item.member.id) }
                         .testTag("member_card_${item.member.name.lowercase()}"),
-                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                     shape = RoundedCornerShape(16.dp),
-                    border = BorderStroke(1.dp, Color(0xFFCAC4D0)),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
                     elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                 ) {
                     Row(
@@ -1721,18 +1722,18 @@ fun AllMembersOverview(
                                             text = item.member.name,
                                             style = MaterialTheme.typography.titleMedium,
                                             fontWeight = FontWeight.Bold,
-                                            color = Color(0xFF1D1B20)
+                                            color = MaterialTheme.colorScheme.onSurface
                                         )
                                         if (item.member.isAdmin) {
                                             Card(
-                                                colors = CardDefaults.cardColors(containerColor = Color(0xFFEADDFF)),
+                                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
                                                 shape = RoundedCornerShape(4.dp)
                                             ) {
                                                 Text(
                                                     text = "ADMIN",
                                                     fontSize = 8.sp,
                                                     fontWeight = FontWeight.ExtraBold,
-                                                    color = Color(0xFF6750A4),
+                                                    color = MaterialTheme.colorScheme.primary,
                                                     modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
                                                 )
                                             }
@@ -1743,7 +1744,7 @@ fun AllMembersOverview(
                                             text = "Wallet: ${NumberFormat.getCurrencyInstance().format(item.member.unallocatedBalance)}",
                                             style = MaterialTheme.typography.labelSmall,
                                             fontWeight = FontWeight.Bold,
-                                            color = Color(0xFF6750A4)
+                                            color = MaterialTheme.colorScheme.primary
                                         )
                                     }
                                 }
@@ -1761,7 +1762,7 @@ fun AllMembersOverview(
                             Text(
                                 text = "${NumberFormat.getCurrencyInstance().format(item.totalSaved)} saved of ${NumberFormat.getCurrencyInstance().format(item.totalTarget)}",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = Color(0xFF49454F)
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
 
                             Spacer(modifier = Modifier.height(8.dp))
@@ -1774,14 +1775,14 @@ fun AllMembersOverview(
                                     .height(10.dp)
                                     .clip(RoundedCornerShape(5.dp)),
                                 color = memberColor,
-                                trackColor = Color(0xFFF3EDF7)
+                                trackColor = MaterialTheme.colorScheme.surfaceVariant
                             )
                         }
 
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowForward,
                             contentDescription = "Open profile",
-                            tint = Color(0xFF6750A4),
+                            tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(20.dp)
                         )
                     }
@@ -1918,9 +1919,9 @@ fun MemberDetailView(
         // Sleek Personal Wallet Card
         item {
             Card(
-                colors = CardDefaults.cardColors(containerColor = Color.White),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 shape = RoundedCornerShape(20.dp),
-                border = BorderStroke(1.dp, Color(0xFFCAC4D0)),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
@@ -1953,12 +1954,12 @@ fun MemberDetailView(
                                 text = "Personal Fund Wallet",
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
-                                color = Color(0xFF1D1B20)
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                             Text(
                                 text = "Money ready to allocate to goals",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = Color.Gray
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
@@ -2393,6 +2394,7 @@ fun getEmojiForGoal(title: String): String {
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun SavingsGoalCard(
     goalItem: GoalWithProgress,
@@ -2412,9 +2414,9 @@ fun SavingsGoalCard(
         modifier = Modifier
             .fillMaxWidth()
             .testTag("goal_card_${goalItem.goal.title.lowercase()}"),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         shape = RoundedCornerShape(16.dp),
-        border = BorderStroke(1.dp, Color(0xFFCAC4D0)),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(
@@ -2456,7 +2458,7 @@ fun SavingsGoalCard(
                                 text = goalItem.goal.title,
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
-                                color = Color(0xFF1D1B20),
+                                color = MaterialTheme.colorScheme.onSurface,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
                                 modifier = Modifier.weight(1f, fill = false)
@@ -2464,12 +2466,12 @@ fun SavingsGoalCard(
                             if (goalItem.goal.isCompleted) {
                                 Box(
                                     modifier = Modifier
-                                        .background(Color(0xFFE8F5E9), RoundedCornerShape(4.dp))
+                                        .background(AppTheme.extendedColors.successContainer, RoundedCornerShape(4.dp))
                                         .padding(horizontal = 6.dp, vertical = 2.dp)
                                 ) {
                                     Text(
                                         text = "COMPLETED",
-                                        color = Color(0xFF2E7D32),
+                                        color = AppTheme.extendedColors.success,
                                         fontSize = 9.sp,
                                         fontWeight = FontWeight.Bold
                                     )
@@ -2484,14 +2486,14 @@ fun SavingsGoalCard(
                             Text(
                                 text = "Added ${goalSdf.format(Date(goalItem.goal.createdAt))}",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = Color.Gray,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 fontWeight = FontWeight.Normal
                             )
                             goalItem.goal.purchaseUrl?.let { url ->
                                 Text(
                                     text = "•",
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = Color.Gray
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                                 Text(
                                     text = "Buy Link ↗",
@@ -2528,7 +2530,7 @@ fun SavingsGoalCard(
                             Icon(
                                 imageVector = if (goalItem.goal.isCompleted) Icons.Default.CheckCircle else Icons.Default.CheckCircleOutline,
                                 contentDescription = "Toggle Complete",
-                                tint = if (goalItem.goal.isCompleted) Color(0xFF2E7D32) else Color.Gray.copy(alpha = 0.7f),
+                                tint = if (goalItem.goal.isCompleted) AppTheme.extendedColors.success else MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.size(20.dp)
                             )
                         }
@@ -2536,7 +2538,7 @@ fun SavingsGoalCard(
                         Icon(
                             imageVector = Icons.Default.CheckCircle,
                             contentDescription = "Completed",
-                            tint = Color(0xFF2E7D32),
+                            tint = AppTheme.extendedColors.success,
                             modifier = Modifier
                                 .size(20.dp)
                                 .padding(end = 4.dp)
@@ -2558,7 +2560,7 @@ fun SavingsGoalCard(
                             Icon(
                                 Icons.Default.Delete,
                                 contentDescription = "Delete savings goal",
-                                tint = Color.Gray.copy(alpha = 0.7f),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.size(18.dp)
                             )
                         }
@@ -2574,7 +2576,7 @@ fun SavingsGoalCard(
                     .height(12.dp)
                     .clip(RoundedCornerShape(6.dp)),
                 color = memberColor,
-                trackColor = Color(0xFFF1F5F9)
+                trackColor = MaterialTheme.colorScheme.surfaceVariant
             )
 
             // Amounts Row with styled bold labels
@@ -2588,7 +2590,7 @@ fun SavingsGoalCard(
                         text = "Saved",
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color.Gray
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
                         text = NumberFormat.getCurrencyInstance().format(goalItem.currentAmount),
@@ -2603,53 +2605,57 @@ fun SavingsGoalCard(
                         text = "Target",
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color.Gray
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
                         text = NumberFormat.getCurrencyInstance().format(goalItem.goal.targetAmount),
                         fontSize = 15.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color(0xFF1D1B20)
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                 }
             }
 
             // Bottom Actions Bar
-            Row(
+            FlowRow(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 // Expand Contributions Button
                 TextButton(
                     onClick = { isExpanded = !isExpanded },
-                    contentPadding = PaddingValues(0.dp)
+                    contentPadding = PaddingValues(0.dp),
+                    modifier = Modifier.weight(1f, fill = false)
                 ) {
                     Text(
-                        text = if (isExpanded) "Hide Deposits" else "View Deposits (${goalItem.contributions.size})",
+                        text = if (isExpanded) "Hide" else "Deposits (${goalItem.contributions.size})",
                         style = MaterialTheme.typography.bodyMedium,
-                        color = Color(0xFF6750A4),
-                        fontWeight = FontWeight.SemiBold
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Ellipsis
                     )
                     Icon(
                         imageVector = if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
                         contentDescription = null,
                         modifier = Modifier.size(20.dp),
-                        tint = Color(0xFF6750A4)
+                        tint = MaterialTheme.colorScheme.primary
                     )
                 }
 
                 // Withdraw and Deposit buttons (Capsule shaped buttons matching member profile color)
                 if (canDepositToGoal) {
                     Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         OutlinedButton(
                             onClick = onWithdrawClick,
                             border = BorderStroke(1.dp, memberColor),
                             colors = ButtonDefaults.outlinedButtonColors(contentColor = memberColor),
-                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
                             shape = RoundedCornerShape(24.dp),
                             modifier = Modifier
                                 .height(36.dp)
@@ -2661,7 +2667,7 @@ fun SavingsGoalCard(
                         Button(
                             onClick = onDepositClick,
                             colors = ButtonDefaults.buttonColors(containerColor = memberColor),
-                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
                             shape = RoundedCornerShape(24.dp),
                             modifier = Modifier
                                 .height(36.dp)
@@ -2836,9 +2842,9 @@ fun MonthlySummaryReports(
                     modifier = Modifier
                         .fillMaxWidth()
                         .testTag("report_card_${report.monthYearString.lowercase().replace(" ", "_")}"),
-                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                     shape = RoundedCornerShape(16.dp),
-                    border = BorderStroke(1.dp, Color(0xFFCAC4D0)),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
                     elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                 ) {
                     Column(
@@ -3036,7 +3042,7 @@ fun PurchasedItemsOverview(
         item {
             Card(
                 shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFFE8F5E9)),
+                colors = CardDefaults.cardColors(containerColor = AppTheme.extendedColors.successContainer),
                 elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
@@ -3048,13 +3054,13 @@ fun PurchasedItemsOverview(
                     Box(
                         modifier = Modifier
                             .size(56.dp)
-                            .background(Color(0xFF2E7D32).copy(alpha = 0.15f), CircleShape),
+                            .background(AppTheme.extendedColors.success.copy(alpha = 0.15f), CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = Icons.Default.CheckCircle,
                             contentDescription = null,
-                            tint = Color(0xFF2E7D32),
+                            tint = AppTheme.extendedColors.success,
                             modifier = Modifier.size(32.dp)
                         )
                     }
@@ -3062,7 +3068,7 @@ fun PurchasedItemsOverview(
                         Text(
                             text = "Purchased Items",
                             style = MaterialTheme.typography.titleMedium,
-                            color = Color(0xFF1B5E20),
+                            color = AppTheme.extendedColors.onSuccessContainer,
                             fontWeight = FontWeight.Bold
                         )
                         val totalPurchased = membersWithCompletedGoals.sumOf { it.second.size }
@@ -3070,7 +3076,7 @@ fun PurchasedItemsOverview(
                         Text(
                             text = "$totalPurchased items purchased across the family (" + NumberFormat.getCurrencyInstance().format(totalSaved) + " saved!)",
                             style = MaterialTheme.typography.bodyMedium,
-                            color = Color(0xFF2E7D32)
+                            color = AppTheme.extendedColors.success
                         )
                     }
                 }
@@ -3093,7 +3099,7 @@ fun PurchasedItemsOverview(
                         Icon(
                             Icons.Default.ShoppingCart,
                             contentDescription = null,
-                            tint = Color.Gray.copy(alpha = 0.6f),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(48.dp)
                         )
                         Text(
@@ -3153,9 +3159,9 @@ fun PurchasedItemsOverview(
                         modifier = Modifier
                             .fillMaxWidth()
                             .testTag("purchased_card_${goalItem.goal.title.lowercase()}"),
-                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                         shape = RoundedCornerShape(16.dp),
-                        border = BorderStroke(1.dp, Color(0xFFCAC4D0)),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
                         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                     ) {
                         Column(
@@ -3191,7 +3197,7 @@ fun PurchasedItemsOverview(
                                             text = goalItem.goal.title,
                                             style = MaterialTheme.typography.titleMedium,
                                             fontWeight = FontWeight.Bold,
-                                            color = Color(0xFF1D1B20),
+                                            color = MaterialTheme.colorScheme.onSurface,
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis
                                         )
@@ -3204,14 +3210,14 @@ fun PurchasedItemsOverview(
                                             Text(
                                                 text = "Completed!",
                                                 style = MaterialTheme.typography.bodySmall,
-                                                color = Color(0xFF2E7D32),
+                                                color = AppTheme.extendedColors.success,
                                                 fontWeight = FontWeight.Bold
                                             )
                                             goalItem.goal.purchaseUrl?.let { url ->
                                                 Text(
                                                     text = "•",
                                                     style = MaterialTheme.typography.bodySmall,
-                                                    color = Color.Gray
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                                 )
                                                 Text(
                                                     text = "Buy Link ↗",
@@ -3247,7 +3253,7 @@ fun PurchasedItemsOverview(
                                         Icon(
                                             imageVector = Icons.Default.CheckCircle,
                                             contentDescription = "Mark Incomplete",
-                                            tint = Color(0xFF2E7D32),
+                                            tint = AppTheme.extendedColors.success,
                                             modifier = Modifier.size(20.dp)
                                         )
                                     }
@@ -3260,7 +3266,7 @@ fun PurchasedItemsOverview(
                                             Icon(
                                                 Icons.Default.Delete,
                                                 contentDescription = "Delete purchased goal",
-                                                tint = Color.Gray.copy(alpha = 0.7f),
+                                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                                 modifier = Modifier.size(18.dp)
                                             )
                                         }
@@ -3276,13 +3282,13 @@ fun PurchasedItemsOverview(
                                 Text(
                                     text = "Total Saved/Spent:",
                                     style = MaterialTheme.typography.bodyMedium,
-                                    color = Color.Gray
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                                 Text(
                                     text = NumberFormat.getCurrencyInstance().format(goalItem.currentAmount),
                                     style = MaterialTheme.typography.bodyMedium,
                                     fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF1D1B20)
+                                    color = MaterialTheme.colorScheme.onSurface
                                 )
                             }
                         }
