@@ -42,6 +42,8 @@ object FeatureColors {
     val chatContainer = ChatAccentContainer
     val savings = SavingsAccent
     val savingsContainer = SavingsAccentContainer
+    val polls = PollsAccent
+    val pollsContainer = PollsAccentContainer
 }
 
 /** Colors for Calendar event-category badges, keyed by category name. Falls back to [EventOther]. */

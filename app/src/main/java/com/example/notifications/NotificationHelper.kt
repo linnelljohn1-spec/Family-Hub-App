@@ -17,6 +17,7 @@ import com.example.R
 object NotificationHelper {
     const val CHANNEL_CHAT_ID = "chat_messages"
     const val CHANNEL_GOALS_ID = "goal_reached"
+    const val CHANNEL_POLLS_ID = "new_polls"
 
     fun createChannels(context: Context) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
@@ -39,8 +40,17 @@ object NotificationHelper {
             description = "Notifications when a savings goal is fully funded"
         }
 
+        val pollsChannel = NotificationChannel(
+            CHANNEL_POLLS_ID,
+            "Family Polls",
+            NotificationManager.IMPORTANCE_DEFAULT
+        ).apply {
+            description = "New polls created by family members"
+        }
+
         manager.createNotificationChannel(chatChannel)
         manager.createNotificationChannel(goalsChannel)
+        manager.createNotificationChannel(pollsChannel)
     }
 
     fun showChatMessageNotification(context: Context, senderName: String, text: String) {
@@ -70,6 +80,21 @@ object NotificationHelper {
             .build()
 
         notify(context, goalTitle.hashCode(), notification)
+    }
+
+    fun showNewPollNotification(context: Context, creatorName: String, question: String) {
+        val title = "New poll from $creatorName"
+
+        val notification = NotificationCompat.Builder(context, CHANNEL_POLLS_ID)
+            .setSmallIcon(R.mipmap.ic_launcher)
+            .setContentTitle(title)
+            .setContentText(question)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(question))
+            .setAutoCancel(true)
+            .setContentIntent(buildOpenAppIntent(context))
+            .build()
+
+        notify(context, question.hashCode(), notification)
     }
 
     private fun buildOpenAppIntent(context: Context): PendingIntent {

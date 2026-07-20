@@ -74,28 +74,31 @@ val familyColors = listOf(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun FamilySavingsApp(viewModel: SavingsViewModel, chatViewModel: ChatViewModel, familyDataSyncViewModel: FamilyDataSyncViewModel) {
+fun FamilySavingsApp(viewModel: SavingsViewModel, chatViewModel: ChatViewModel, familyDataSyncViewModel: FamilyDataSyncViewModel, pollsViewModel: PollsViewModel) {
     val membersWithPerformance by viewModel.familyPerformance.collectAsStateWithLifecycle()
     val monthlyReports by viewModel.monthlyReports.collectAsStateWithLifecycle()
     val activeMemberId by viewModel.activeMemberId.collectAsStateWithLifecycle()
     val syncGroupCode by viewModel.syncGroupCode.collectAsStateWithLifecycle()
     val unreadMessagesCount by chatViewModel.unreadCount.collectAsStateWithLifecycle()
+    val openUnvotedPollsCount by pollsViewModel.openUnvotedPollsCount.collectAsStateWithLifecycle()
 
     val activeMember = membersWithPerformance.find { it.member.id == activeMemberId }?.member
     val isActiveAdmin = activeMember?.isAdmin == true
 
     var currentBottomTab by remember { mutableStateOf(0) } // 0: Family, 1: Monthly Summary
     var selectedFamilyTabId by remember { mutableStateOf(-1) } // -1 for All Members
-    var activeScreen by remember { mutableStateOf("hub") } // "hub", "savings", "calendar", "tasks", "chat"
+    var activeScreen by remember { mutableStateOf("hub") } // "hub", "savings", "calendar", "tasks", "chat", "polls"
 
-    // Keep ChatViewModel's / FamilyDataSyncViewModel's sync group in sync with SavingsViewModel's state
+    // Keep ChatViewModel's / FamilyDataSyncViewModel's / PollsViewModel's sync group in sync with SavingsViewModel's state
     LaunchedEffect(syncGroupCode) {
         chatViewModel.setSyncGroupCode(syncGroupCode)
         familyDataSyncViewModel.setSyncGroupCode(syncGroupCode)
+        pollsViewModel.setSyncGroupCode(syncGroupCode)
     }
     LaunchedEffect(activeMember) {
         activeMember?.let {
             chatViewModel.setActiveMember(it.id, it.name, it.avatarColorHex)
+            pollsViewModel.setActiveMember(it.id, it.name, it.isAdmin)
         }
     }
 
@@ -141,8 +144,19 @@ fun FamilySavingsApp(viewModel: SavingsViewModel, chatViewModel: ChatViewModel, 
                     onNavigateToCalendar = { activeScreen = "calendar" },
                     onNavigateToTasks = { activeScreen = "tasks" },
                     onNavigateToChat = { activeScreen = "chat" },
+                    onNavigateToPolls = { activeScreen = "polls" },
                     unreadMessagesCount = unreadMessagesCount,
+                    openPollsCount = openUnvotedPollsCount,
                     onSwitchProfileClick = { showSwitchProfileDialog = true }
+                )
+            }
+            "polls" -> {
+                PollsScreen(
+                    pollsViewModel = pollsViewModel,
+                    members = membersWithPerformance.map { it.member },
+                    activeMemberId = activeMemberId,
+                    isActiveAdmin = isActiveAdmin,
+                    onNavigateBack = { activeScreen = "hub" }
                 )
             }
             "calendar" -> {

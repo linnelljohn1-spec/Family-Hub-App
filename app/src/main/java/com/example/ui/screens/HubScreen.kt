@@ -42,7 +42,9 @@ fun HubScreen(
     onNavigateToCalendar: () -> Unit,
     onNavigateToTasks: () -> Unit,
     onNavigateToChat: () -> Unit,
+    onNavigateToPolls: () -> Unit,
     unreadMessagesCount: Int,
+    openPollsCount: Int,
     onSwitchProfileClick: () -> Unit
 ) {
     val membersWithPerformance by viewModel.familyPerformance.collectAsStateWithLifecycle()
@@ -479,6 +481,66 @@ fun HubScreen(
                         )
                         Text(
                             text = "Message the whole family in one shared conversation.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Icon(
+                        imageVector = Icons.Default.ChevronRight,
+                        contentDescription = "Navigate",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            // Family Polls launcher Card
+            Card(
+                onClick = onNavigateToPolls,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("launcher_polls"),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    BadgedBox(
+                        badge = {
+                            if (openPollsCount > 0) {
+                                Badge { Text(if (openPollsCount > 99) "99+" else openPollsCount.toString()) }
+                            }
+                        }
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(56.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(FeatureColors.pollsContainer),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.HowToVote,
+                                contentDescription = null,
+                                tint = FeatureColors.polls,
+                                modifier = Modifier.size(28.dp)
+                            )
+                        }
+                    }
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Family Polls",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "Ask a question, vote together, and see live results.",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
