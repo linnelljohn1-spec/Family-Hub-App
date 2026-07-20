@@ -1,9 +1,13 @@
 package com.example.data
 
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 
-@Entity(tableName = "calendar_events")
+@Entity(
+    tableName = "calendar_events",
+    indices = [Index(value = ["firestoreId"], unique = true)]
+)
 data class CalendarEvent(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
     val title: String,
@@ -15,5 +19,6 @@ data class CalendarEvent(
     val createdAt: Long = System.currentTimeMillis(),
     val isCompleted: Boolean = false,
     val isAllDay: Boolean = false,
-    val endTime: String? = null
+    val endTime: String? = null,
+    val firestoreId: String? = null
 )

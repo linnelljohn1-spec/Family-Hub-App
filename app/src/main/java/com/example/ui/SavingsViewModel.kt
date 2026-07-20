@@ -11,10 +11,14 @@ import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
 
-enum class SyncStatus {
+private const val NO_MEMBER = -1
+
+enum class MigrationStatus {
     IDLE,
-    SYNCING,
+    CHECKING,
+    MIGRATING,
     SUCCESS,
+    REFUSED_NOT_EMPTY,
     ERROR
 }
 
@@ -73,62 +77,24 @@ class SavingsViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    // Sync States
+    // Sync group state - Firestore-backed, always-live once connected
     private val _syncGroupCode = MutableStateFlow<String>("")
     val syncGroupCode: StateFlow<String> = _syncGroupCode.asStateFlow()
 
-    private val _isAutoSyncEnabled = MutableStateFlow<Boolean>(true)
-    val isAutoSyncEnabled: StateFlow<Boolean> = _isAutoSyncEnabled.asStateFlow()
+    val isConnected: StateFlow<Boolean> = syncGroupCode.map { it.isNotEmpty() }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
-    private val _syncStatus = MutableStateFlow<SyncStatus>(SyncStatus.IDLE)
-    val syncStatus: StateFlow<SyncStatus> = _syncStatus.asStateFlow()
-
-    private val _lastSyncedTime = MutableStateFlow<Long>(0L)
-    val lastSyncedTime: StateFlow<Long> = _lastSyncedTime.asStateFlow()
-
-    private val _syncErrorMessage = MutableStateFlow<String>("")
-    val syncErrorMessage: StateFlow<String> = _syncErrorMessage.asStateFlow()
+    private val _migrationStatus = MutableStateFlow(MigrationStatus.IDLE)
+    val migrationStatus: StateFlow<MigrationStatus> = _migrationStatus.asStateFlow()
 
     private val prefs = application.getSharedPreferences("family_organizer_prefs", Context.MODE_PRIVATE)
 
     private fun loadSyncSettings() {
         _syncGroupCode.value = prefs.getString("sync_group_code", "") ?: ""
-        _isAutoSyncEnabled.value = prefs.getBoolean("is_auto_sync_enabled", true)
-        _lastSyncedTime.value = prefs.getLong("last_sync_time", 0L)
     }
 
     private fun saveSyncSettings() {
-        prefs.edit()
-            .putString("sync_group_code", _syncGroupCode.value)
-            .putBoolean("is_auto_sync_enabled", _isAutoSyncEnabled.value)
-            .putLong("last_sync_time", _lastSyncedTime.value)
-            .apply()
-    }
-
-    fun triggerAutoSync() {
-        val code = _syncGroupCode.value
-        if (code.isNotEmpty() && _isAutoSyncEnabled.value) {
-            viewModelScope.launch {
-                try {
-                    _syncStatus.value = SyncStatus.SYNCING
-                    val payload = SyncPayload(
-                        members = repository.allMembers.first(),
-                        goals = repository.allGoals.first(),
-                        contributions = repository.allContributions.first(),
-                        events = calendarRepository.allEvents.first(),
-                        tasks = taskRepository.allTasks.first(),
-                        lastUpdated = System.currentTimeMillis()
-                    )
-                    SyncService.updateSyncPayload(code, payload)
-                    _lastSyncedTime.value = payload.lastUpdated
-                    _syncStatus.value = SyncStatus.SUCCESS
-                    saveSyncSettings()
-                } catch (e: Exception) {
-                    _syncStatus.value = SyncStatus.ERROR
-                    _syncErrorMessage.value = e.message ?: "Failed to upload update"
-                }
-            }
-        }
+        prefs.edit().putString("sync_group_code", _syncGroupCode.value).apply()
     }
 
     // Raw data streams
@@ -148,10 +114,14 @@ class SavingsViewModel(application: Application) : AndroidViewModel(application)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     init {
-        // Prepopulate examples on first launch if database is empty
+        loadSyncSettings()
+        val hasSyncGroup = _syncGroupCode.value.isNotEmpty()
+
+        // Prepopulate examples on first launch, but never for a device that's already
+        // part of a family sync group - it should wait for Firestore to populate instead.
         viewModelScope.launch {
             repository.allMembers.first().let { currentMembers ->
-                if (currentMembers.isEmpty()) {
+                if (currentMembers.isEmpty() && !hasSyncGroup) {
                     val adminId = repository.insertMember(FamilyMember(name = "John", avatarColorHex = "#6750A4", isAdmin = true, unallocatedBalance = 250.0))
                     val member1Id = repository.insertMember(FamilyMember(name = "Alex", avatarColorHex = "#4CAF50", unallocatedBalance = 50.0))
                     val member2Id = repository.insertMember(FamilyMember(name = "Jordan", avatarColorHex = "#FF4081", unallocatedBalance = 30.0))
@@ -166,7 +136,7 @@ class SavingsViewModel(application: Application) : AndroidViewModel(application)
                     // Some contributions in current month
                     val now = System.currentTimeMillis()
                     val oneDayMs = 24 * 60 * 60 * 1000L
-                    
+
                     repository.insertContribution(Contribution(goalId = goal1Id.toInt(), amount = 450.0, timestamp = now - 5 * oneDayMs, note = "Allocated from personal fund"))
                     repository.insertContribution(Contribution(goalId = goal1Id.toInt(), amount = 150.0, timestamp = now - 1 * oneDayMs, note = "Allowance allocated"))
                     repository.insertContribution(Contribution(goalId = goal2Id.toInt(), amount = 120.0, timestamp = now - 3 * oneDayMs, note = "Birthday gift allocation"))
@@ -177,10 +147,10 @@ class SavingsViewModel(application: Application) : AndroidViewModel(application)
             }
         }
 
-        // Prepopulate calendar events if calendar_events is empty
+        // Prepopulate calendar events if calendar_events is empty and not synced
         viewModelScope.launch {
             calendarRepository.allEvents.first().let { currentEvents ->
-                if (currentEvents.isEmpty()) {
+                if (currentEvents.isEmpty() && !hasSyncGroup) {
                     val memberList = repository.allMembers.first()
                     val adminId = memberList.find { it.isAdmin }?.id ?: -1
                     val alexId = memberList.find { name -> name.name == "Alex" }?.id ?: -1
@@ -196,10 +166,10 @@ class SavingsViewModel(application: Application) : AndroidViewModel(application)
             }
         }
 
-        // Prepopulate tasks if empty
+        // Prepopulate tasks if empty and not synced
         viewModelScope.launch {
             taskRepository.allTasks.first().let { currentTasks ->
-                if (currentTasks.isEmpty()) {
+                if (currentTasks.isEmpty() && !hasSyncGroup) {
                     val memberList = repository.allMembers.first()
                     val alexId = memberList.find { it.name == "Alex" }?.id ?: -1
                     val jordanId = memberList.find { it.name == "Jordan" }?.id ?: -1
@@ -211,12 +181,6 @@ class SavingsViewModel(application: Application) : AndroidViewModel(application)
                     taskRepository.insertTask(FamilyTask(title = "Walk the dog 🐕", description = "Take Buster for a 20 minute walk around the park.", assignedMemberId = -1))
                 }
             }
-        }
-
-        // Load sync settings and trigger on start sync if connected
-        loadSyncSettings()
-        if (_syncGroupCode.value.isNotEmpty()) {
-            syncNow()
         }
 
         // Set the active member ID automatically to the Admin when loaded
@@ -234,6 +198,128 @@ class SavingsViewModel(application: Application) : AndroidViewModel(application)
         sharedPrefs.edit().putInt("active_member_id", id).apply()
     }
 
+    // ---- Firestore push helpers ----
+    // Every entity gets a firestoreId assigned at creation time (whether or not this
+    // device is currently connected), so it's always ready to be migrated/synced later.
+    // Pushing to Firestore is a no-op whenever syncGroupCode is empty.
+
+    private suspend fun ensureMemberFirestoreId(member: FamilyMember): FamilyMember {
+        if (member.firestoreId != null) return member
+        val updated = member.copy(firestoreId = UUID.randomUUID().toString())
+        repository.updateMember(updated)
+        return updated
+    }
+
+    private suspend fun ensureGoalFirestoreId(goal: SavingsGoal): SavingsGoal {
+        if (goal.firestoreId != null) return goal
+        val updated = goal.copy(firestoreId = UUID.randomUUID().toString())
+        repository.updateGoal(updated)
+        return updated
+    }
+
+    private suspend fun ensureContributionFirestoreId(contribution: Contribution): Contribution {
+        if (contribution.firestoreId != null) return contribution
+        val updated = contribution.copy(firestoreId = UUID.randomUUID().toString())
+        repository.insertContribution(updated)
+        return updated
+    }
+
+    private suspend fun ensureCalendarEventFirestoreId(event: CalendarEvent): CalendarEvent {
+        if (event.firestoreId != null) return event
+        val updated = event.copy(firestoreId = UUID.randomUUID().toString())
+        calendarRepository.insertEvent(updated)
+        return updated
+    }
+
+    private suspend fun ensureTaskFirestoreId(task: FamilyTask): FamilyTask {
+        if (task.firestoreId != null) return task
+        val updated = task.copy(firestoreId = UUID.randomUUID().toString())
+        taskRepository.insertTask(updated)
+        return updated
+    }
+
+    private suspend fun pushMember(member: FamilyMember) {
+        val code = _syncGroupCode.value
+        if (code.isEmpty()) return
+        FamilyDataSyncService.upsertMember(code, ensureMemberFirestoreId(member))
+    }
+
+    private suspend fun pushGoal(goal: SavingsGoal) {
+        val code = _syncGroupCode.value
+        if (code.isEmpty()) return
+        val member = repository.allMembers.first().find { it.id == goal.memberId } ?: return
+        val ensuredMember = ensureMemberFirestoreId(member)
+        val ensuredGoal = ensureGoalFirestoreId(goal)
+        FamilyDataSyncService.upsertGoal(code, ensuredGoal, ensuredMember.firestoreId!!)
+    }
+
+    private suspend fun pushContribution(contribution: Contribution) {
+        val code = _syncGroupCode.value
+        if (code.isEmpty()) return
+        val goal = repository.allGoals.first().find { it.id == contribution.goalId } ?: return
+        val ensuredGoal = ensureGoalFirestoreId(goal)
+        FamilyDataSyncService.upsertContribution(code, ensureContributionFirestoreId(contribution), ensuredGoal.firestoreId!!)
+    }
+
+    private suspend fun pushCalendarEvent(event: CalendarEvent) {
+        val code = _syncGroupCode.value
+        if (code.isEmpty()) return
+        val ensuredEvent = ensureCalendarEventFirestoreId(event)
+        val createdByFirestoreId = if (ensuredEvent.createdByMemberId == NO_MEMBER) {
+            null
+        } else {
+            repository.allMembers.first().find { it.id == ensuredEvent.createdByMemberId }?.let { ensureMemberFirestoreId(it).firestoreId }
+        }
+        FamilyDataSyncService.upsertCalendarEvent(code, ensuredEvent, createdByFirestoreId)
+    }
+
+    private suspend fun pushTask(task: FamilyTask) {
+        val code = _syncGroupCode.value
+        if (code.isEmpty()) return
+        val ensuredTask = ensureTaskFirestoreId(task)
+        val assignedFirestoreId = if (ensuredTask.assignedMemberId == NO_MEMBER) {
+            null
+        } else {
+            repository.allMembers.first().find { it.id == ensuredTask.assignedMemberId }?.let { ensureMemberFirestoreId(it).firestoreId }
+        }
+        FamilyDataSyncService.upsertTask(code, ensuredTask, assignedFirestoreId)
+    }
+
+    private suspend fun pushDeleteMember(member: FamilyMember) {
+        val code = _syncGroupCode.value
+        val firestoreId = member.firestoreId
+        if (code.isEmpty() || firestoreId == null) return
+        FamilyDataSyncService.deleteMember(code, firestoreId)
+    }
+
+    private suspend fun pushDeleteGoal(goal: SavingsGoal) {
+        val code = _syncGroupCode.value
+        val firestoreId = goal.firestoreId
+        if (code.isEmpty() || firestoreId == null) return
+        FamilyDataSyncService.deleteGoal(code, firestoreId)
+    }
+
+    private fun pushDeleteContribution(contribution: Contribution) {
+        val code = _syncGroupCode.value
+        val firestoreId = contribution.firestoreId
+        if (code.isEmpty() || firestoreId == null) return
+        FamilyDataSyncService.deleteContribution(code, firestoreId)
+    }
+
+    private fun pushDeleteCalendarEvent(event: CalendarEvent) {
+        val code = _syncGroupCode.value
+        val firestoreId = event.firestoreId
+        if (code.isEmpty() || firestoreId == null) return
+        FamilyDataSyncService.deleteCalendarEvent(code, firestoreId)
+    }
+
+    private fun pushDeleteTask(task: FamilyTask) {
+        val code = _syncGroupCode.value
+        val firestoreId = task.firestoreId
+        if (code.isEmpty() || firestoreId == null) return
+        FamilyDataSyncService.deleteTask(code, firestoreId)
+    }
+
     fun addCalendarEvent(
         title: String,
         description: String,
@@ -245,40 +331,41 @@ class SavingsViewModel(application: Application) : AndroidViewModel(application)
         endTime: String? = null
     ) {
         viewModelScope.launch {
-            calendarRepository.insertEvent(
-                CalendarEvent(
-                    title = title,
-                    description = description,
-                    date = date,
-                    time = time,
-                    category = category,
-                    createdByMemberId = createdByMemberId,
-                    isAllDay = isAllDay,
-                    endTime = endTime
-                )
+            val event = CalendarEvent(
+                title = title,
+                description = description,
+                date = date,
+                time = time,
+                category = category,
+                createdByMemberId = createdByMemberId,
+                isAllDay = isAllDay,
+                endTime = endTime,
+                firestoreId = UUID.randomUUID().toString()
             )
-            triggerAutoSync()
+            calendarRepository.insertEvent(event)
+            pushCalendarEvent(event)
         }
     }
 
     fun deleteCalendarEvent(event: CalendarEvent) {
         viewModelScope.launch {
             calendarRepository.deleteEvent(event)
-            triggerAutoSync()
+            pushDeleteCalendarEvent(event)
         }
     }
 
     fun toggleCalendarEventCompletion(event: CalendarEvent) {
         viewModelScope.launch {
-            calendarRepository.insertEvent(event.copy(isCompleted = !event.isCompleted))
-            triggerAutoSync()
+            val updated = event.copy(isCompleted = !event.isCompleted)
+            calendarRepository.insertEvent(updated)
+            pushCalendarEvent(updated)
         }
     }
 
     fun updateCalendarEvent(event: CalendarEvent) {
         viewModelScope.launch {
             calendarRepository.insertEvent(event)
-            triggerAutoSync()
+            pushCalendarEvent(event)
         }
     }
 
@@ -381,8 +468,9 @@ class SavingsViewModel(application: Application) : AndroidViewModel(application)
     // CRUD actions
     fun addMember(name: String, colorHex: String, isAdmin: Boolean = false, password: String = "1234") {
         viewModelScope.launch {
-            repository.insertMember(FamilyMember(name = name, avatarColorHex = colorHex, unallocatedBalance = 0.0, isAdmin = isAdmin, password = password))
-            triggerAutoSync()
+            val member = FamilyMember(name = name, avatarColorHex = colorHex, unallocatedBalance = 0.0, isAdmin = isAdmin, password = password, firestoreId = UUID.randomUUID().toString())
+            repository.insertMember(member)
+            pushMember(member)
         }
     }
 
@@ -391,7 +479,7 @@ class SavingsViewModel(application: Application) : AndroidViewModel(application)
             members.value.find { it.id == memberId }?.let { currentMember ->
                 val updatedMember = currentMember.copy(password = newPassword)
                 repository.updateMember(updatedMember)
-                triggerAutoSync()
+                pushMember(updatedMember)
             }
         }
     }
@@ -401,7 +489,7 @@ class SavingsViewModel(application: Application) : AndroidViewModel(application)
             members.value.find { it.id == memberId }?.let { currentMember ->
                 val updatedMember = currentMember.copy(name = newName, avatarColorHex = newColorHex)
                 repository.updateMember(updatedMember)
-                triggerAutoSync()
+                pushMember(updatedMember)
             }
         }
     }
@@ -411,7 +499,7 @@ class SavingsViewModel(application: Application) : AndroidViewModel(application)
             members.value.find { it.id == memberId }?.let { currentMember ->
                 val updatedMember = currentMember.copy(unallocatedBalance = currentMember.unallocatedBalance + amount)
                 repository.updateMember(updatedMember)
-                triggerAutoSync()
+                pushMember(updatedMember)
             }
         }
     }
@@ -422,7 +510,7 @@ class SavingsViewModel(application: Application) : AndroidViewModel(application)
                 if (currentMember.unallocatedBalance >= amount) {
                     val updatedMember = currentMember.copy(unallocatedBalance = (currentMember.unallocatedBalance - amount).coerceAtLeast(0.0))
                     repository.updateMember(updatedMember)
-                    triggerAutoSync()
+                    pushMember(updatedMember)
                 }
             }
         }
@@ -435,9 +523,11 @@ class SavingsViewModel(application: Application) : AndroidViewModel(application)
                     val previousTotal = repository.getContributionsForGoal(goalId).first().sumOf { it.amount }
                     val updatedMember = currentMember.copy(unallocatedBalance = (currentMember.unallocatedBalance - amount).coerceAtLeast(0.0))
                     repository.updateMember(updatedMember)
-                    repository.insertContribution(Contribution(goalId = goalId, amount = amount, note = note ?: "Allocated from personal fund"))
+                    pushMember(updatedMember)
+                    val contribution = Contribution(goalId = goalId, amount = amount, note = note ?: "Allocated from personal fund", firestoreId = UUID.randomUUID().toString())
+                    repository.insertContribution(contribution)
+                    pushContribution(contribution)
                     checkAndNotifyGoalReached(goalId, memberId, previousTotal, previousTotal + amount)
-                    triggerAutoSync()
                 }
             }
         }
@@ -448,8 +538,10 @@ class SavingsViewModel(application: Application) : AndroidViewModel(application)
             members.value.find { it.id == memberId }?.let { currentMember ->
                 val updatedMember = currentMember.copy(unallocatedBalance = currentMember.unallocatedBalance + amount)
                 repository.updateMember(updatedMember)
-                repository.insertContribution(Contribution(goalId = goalId, amount = -amount, note = note ?: "Withdrawn to personal wallet"))
-                triggerAutoSync()
+                pushMember(updatedMember)
+                val contribution = Contribution(goalId = goalId, amount = -amount, note = note ?: "Withdrawn to personal wallet", firestoreId = UUID.randomUUID().toString())
+                repository.insertContribution(contribution)
+                pushContribution(contribution)
             }
         }
     }
@@ -457,30 +549,32 @@ class SavingsViewModel(application: Application) : AndroidViewModel(application)
     fun deleteMember(member: FamilyMember) {
         viewModelScope.launch {
             repository.deleteMember(member)
-            triggerAutoSync()
+            pushDeleteMember(member)
         }
     }
 
     fun addGoal(memberId: Int, title: String, targetAmount: Double, purchaseUrl: String? = null) {
         viewModelScope.launch {
-            repository.insertGoal(SavingsGoal(memberId = memberId, title = title, targetAmount = targetAmount, purchaseUrl = purchaseUrl))
-            triggerAutoSync()
+            val goal = SavingsGoal(memberId = memberId, title = title, targetAmount = targetAmount, purchaseUrl = purchaseUrl, firestoreId = UUID.randomUUID().toString())
+            repository.insertGoal(goal)
+            pushGoal(goal)
         }
     }
 
     fun deleteGoal(goal: SavingsGoal) {
         viewModelScope.launch {
-            val contributions = repository.getContributionsForGoal(goal.id).first()
-            val totalSaved = contributions.sumOf { it.amount }
+            val contributionsForGoal = repository.getContributionsForGoal(goal.id).first()
+            val totalSaved = contributionsForGoal.sumOf { it.amount }
             if (!goal.isCompleted && totalSaved > 0.0) {
                 val memberList = repository.allMembers.first()
                 memberList.find { it.id == goal.memberId }?.let { member ->
                     val updatedMember = member.copy(unallocatedBalance = member.unallocatedBalance + totalSaved)
                     repository.updateMember(updatedMember)
+                    pushMember(updatedMember)
                 }
             }
             repository.deleteGoal(goal)
-            triggerAutoSync()
+            pushDeleteGoal(goal)
         }
     }
 
@@ -488,7 +582,7 @@ class SavingsViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch {
             val updatedGoal = goal.copy(isCompleted = !goal.isCompleted)
             repository.updateGoal(updatedGoal)
-            triggerAutoSync()
+            pushGoal(updatedGoal)
         }
     }
 
@@ -496,11 +590,12 @@ class SavingsViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch {
             val goal = repository.allGoals.first().find { it.id == goalId }
             val previousTotal = repository.getContributionsForGoal(goalId).first().sumOf { it.amount }
-            repository.insertContribution(Contribution(goalId = goalId, amount = amount, note = note))
+            val contribution = Contribution(goalId = goalId, amount = amount, note = note, firestoreId = UUID.randomUUID().toString())
+            repository.insertContribution(contribution)
+            pushContribution(contribution)
             if (goal != null) {
                 checkAndNotifyGoalReached(goalId, goal.memberId, previousTotal, previousTotal + amount)
             }
-            triggerAutoSync()
         }
     }
 
@@ -529,224 +624,74 @@ class SavingsViewModel(application: Application) : AndroidViewModel(application)
                     val updatedBalance = (member.unallocatedBalance + contribution.amount).coerceAtLeast(0.0)
                     val updatedMember = member.copy(unallocatedBalance = updatedBalance)
                     repository.updateMember(updatedMember)
+                    pushMember(updatedMember)
                 }
             }
             repository.deleteContribution(contribution)
-            triggerAutoSync()
+            pushDeleteContribution(contribution)
         }
     }
 
-    // Sync Operations
+    // ---- Sync group lifecycle ----
+    // Firestore collections/documents are created implicitly on first write, so
+    // "creating" a group is just adopting a fresh local code - no network call needed.
+
     fun createSyncGroup() {
-        viewModelScope.launch {
-            try {
-                _syncStatus.value = SyncStatus.SYNCING
-                val localPayload = SyncPayload(
-                    members = repository.allMembers.first(),
-                    goals = repository.allGoals.first(),
-                    contributions = repository.allContributions.first(),
-                    events = calendarRepository.allEvents.first(),
-                    lastUpdated = System.currentTimeMillis()
-                )
-                val newCode = SyncService.createSyncGroup(localPayload)
-                _syncGroupCode.value = newCode
-                _lastSyncedTime.value = localPayload.lastUpdated
-                _syncStatus.value = SyncStatus.SUCCESS
-                saveSyncSettings()
-            } catch (e: Exception) {
-                _syncStatus.value = SyncStatus.ERROR
-                val rawMsg = e.message ?: "Failed to create sync group"
-                _syncErrorMessage.value = if (rawMsg.contains("500")) {
-                    "The cloud sync server is currently experiencing issues. Please try again later."
-                } else {
-                    rawMsg
-                }
-            }
-        }
+        val newCode = UUID.randomUUID().toString().take(8).uppercase()
+        _syncGroupCode.value = newCode
+        saveSyncSettings()
     }
 
     fun joinSyncGroup(code: String) {
         val trimmed = code.trim()
         if (trimmed.isEmpty()) return
-
         viewModelScope.launch {
-            try {
-                _syncStatus.value = SyncStatus.SYNCING
-                val remotePayload = SyncService.fetchSyncPayload(trimmed)
-
-                repository.clearAll()
-                calendarRepository.clearAll()
-                taskRepository.clearAll()
-
-                repository.insertAll(
-                    remotePayload.members,
-                    remotePayload.goals,
-                    remotePayload.contributions
-                )
-                calendarRepository.insertAll(remotePayload.events)
-                taskRepository.insertAll(remotePayload.tasks)
-
-                _syncGroupCode.value = trimmed
-                _lastSyncedTime.value = remotePayload.lastUpdated
-                _syncStatus.value = SyncStatus.SUCCESS
-                saveSyncSettings()
-                
-                // Refresh active member
-                updateActiveMemberWithFallback(remotePayload.members)
-            } catch (e: Exception) {
-                _syncStatus.value = SyncStatus.ERROR
-                val rawMsg = e.message ?: "Failed to join sync group"
-                _syncErrorMessage.value = if (rawMsg.contains("404")) {
-                    "The sync code is invalid or has expired. Please create a new sync group on one device and share the code."
-                } else if (rawMsg.contains("500")) {
-                    "The cloud sync server is currently experiencing issues. Please try again later."
-                } else {
-                    rawMsg
-                }
-            }
+            // Clear local data so this device's own pre-join data doesn't mix with
+            // the family's - FamilyDataSyncViewModel's listeners repopulate it live.
+            repository.clearAll()
+            calendarRepository.clearAll()
+            taskRepository.clearAll()
+            _syncGroupCode.value = trimmed
+            saveSyncSettings()
         }
     }
 
     fun disconnectSyncGroup() {
         _syncGroupCode.value = ""
-        _lastSyncedTime.value = 0L
-        _syncStatus.value = SyncStatus.IDLE
         saveSyncSettings()
     }
 
-    fun toggleAutoSync(enabled: Boolean) {
-        _isAutoSyncEnabled.value = enabled
-        saveSyncSettings()
-    }
-
-    fun syncNow() {
+    fun migrateLocalDataToCloud() {
         val code = _syncGroupCode.value
-        if (code.isEmpty()) return
-
+        if (code.isBlank()) return
         viewModelScope.launch {
+            _migrationStatus.value = MigrationStatus.CHECKING
             try {
-                _syncStatus.value = SyncStatus.SYNCING
-                val remotePayload = SyncService.fetchSyncPayload(code)
-                val localLastSynced = _lastSyncedTime.value
-
-                if (remotePayload.lastUpdated > localLastSynced) {
-                    repository.clearAll()
-                    calendarRepository.clearAll()
-                    taskRepository.clearAll()
-
-                    repository.insertAll(
-                        remotePayload.members,
-                        remotePayload.goals,
-                        remotePayload.contributions
-                    )
-                    calendarRepository.insertAll(remotePayload.events)
-                    taskRepository.insertAll(remotePayload.tasks)
-
-                    _lastSyncedTime.value = remotePayload.lastUpdated
-                    _syncStatus.value = SyncStatus.SUCCESS
-                    saveSyncSettings()
-
-                    // Refresh active member
-                    updateActiveMemberWithFallback(remotePayload.members)
-                } else if (remotePayload.lastUpdated < localLastSynced || (localLastSynced == 0L)) {
-                    val localPayload = SyncPayload(
-                        members = repository.allMembers.first(),
-                        goals = repository.allGoals.first(),
-                        contributions = repository.allContributions.first(),
-                        events = calendarRepository.allEvents.first(),
-                        tasks = taskRepository.allTasks.first(),
-                        lastUpdated = System.currentTimeMillis()
-                    )
-                    SyncService.updateSyncPayload(code, localPayload)
-                    _lastSyncedTime.value = localPayload.lastUpdated
-                    _syncStatus.value = SyncStatus.SUCCESS
-                    saveSyncSettings()
-                } else {
-                    _syncStatus.value = SyncStatus.SUCCESS
+                val alreadyHasData = FamilyDataSyncService.hasAnyRemoteData(code)
+                if (alreadyHasData) {
+                    _migrationStatus.value = MigrationStatus.REFUSED_NOT_EMPTY
+                    return@launch
                 }
-            } catch (e: Exception) {
-                _syncStatus.value = SyncStatus.ERROR
-                val rawMsg = e.message ?: "Failed to synchronize"
-                _syncErrorMessage.value = if (rawMsg.contains("404")) {
-                    "Your cloud sync group has expired or been removed. Please disconnect and create a new group."
-                } else if (rawMsg.contains("500")) {
-                    "The cloud sync server is currently experiencing issues. Please try again later."
-                } else {
-                    rawMsg
-                }
-            }
-        }
-    }
 
-    fun forceUpload() {
-        val code = _syncGroupCode.value
-        if (code.isEmpty()) return
+                _migrationStatus.value = MigrationStatus.MIGRATING
 
-        viewModelScope.launch {
-            try {
-                _syncStatus.value = SyncStatus.SYNCING
-                val localPayload = SyncPayload(
-                    members = repository.allMembers.first(),
-                    goals = repository.allGoals.first(),
-                    contributions = repository.allContributions.first(),
-                    events = calendarRepository.allEvents.first(),
-                    lastUpdated = System.currentTimeMillis()
+                val migratedMembers = repository.allMembers.first().map { ensureMemberFirestoreId(it) }
+                val migratedGoals = repository.allGoals.first().map { ensureGoalFirestoreId(it) }
+                val migratedContributions = repository.allContributions.first().map { ensureContributionFirestoreId(it) }
+                val migratedEvents = calendarRepository.allEvents.first().map { ensureCalendarEventFirestoreId(it) }
+                val migratedTasks = taskRepository.allTasks.first().map { ensureTaskFirestoreId(it) }
+
+                FamilyDataSyncService.backfill(
+                    code,
+                    migratedMembers,
+                    migratedGoals,
+                    migratedContributions,
+                    migratedEvents,
+                    migratedTasks
                 )
-                SyncService.updateSyncPayload(code, localPayload)
-                _lastSyncedTime.value = localPayload.lastUpdated
-                _syncStatus.value = SyncStatus.SUCCESS
-                saveSyncSettings()
+                _migrationStatus.value = MigrationStatus.SUCCESS
             } catch (e: Exception) {
-                _syncStatus.value = SyncStatus.ERROR
-                val rawMsg = e.message ?: "Force upload failed"
-                _syncErrorMessage.value = if (rawMsg.contains("404")) {
-                    "Your cloud sync group has expired or been removed. Please disconnect and create a new group."
-                } else if (rawMsg.contains("500")) {
-                    "The cloud sync server is currently experiencing issues. Please try again later."
-                } else {
-                    rawMsg
-                }
-            }
-        }
-    }
-
-    fun forceDownload() {
-        val code = _syncGroupCode.value
-        if (code.isEmpty()) return
-
-        viewModelScope.launch {
-            try {
-                _syncStatus.value = SyncStatus.SYNCING
-                val remotePayload = SyncService.fetchSyncPayload(code)
-
-                repository.clearAll()
-                calendarRepository.clearAll()
-                taskRepository.clearAll()
-
-                repository.insertAll(
-                    remotePayload.members,
-                    remotePayload.goals,
-                    remotePayload.contributions
-                )
-                calendarRepository.insertAll(remotePayload.events)
-                taskRepository.insertAll(remotePayload.tasks)
-
-                _lastSyncedTime.value = remotePayload.lastUpdated
-                _syncStatus.value = SyncStatus.SUCCESS
-                saveSyncSettings()
-
-                // Refresh active member
-                updateActiveMemberWithFallback(remotePayload.members)
-            } catch (e: Exception) {
-                _syncStatus.value = SyncStatus.ERROR
-                val rawMsg = e.message ?: "Force download failed"
-                _syncErrorMessage.value = if (rawMsg.contains("404")) {
-                    "Your cloud sync group has expired or been removed. Please disconnect and create a new group."
-                } else if (rawMsg.contains("500")) {
-                    "The cloud sync server is currently experiencing issues. Please try again later."
-                } else {
-                    rawMsg
-                }
+                _migrationStatus.value = MigrationStatus.ERROR
             }
         }
     }
@@ -796,22 +741,24 @@ class SavingsViewModel(application: Application) : AndroidViewModel(application)
 
     fun addTask(title: String, description: String, assignedMemberId: Int, dueDate: String = "") {
         viewModelScope.launch {
-            taskRepository.insertTask(FamilyTask(title = title, description = description, assignedMemberId = assignedMemberId, dueDate = dueDate))
-            triggerAutoSync()
+            val task = FamilyTask(title = title, description = description, assignedMemberId = assignedMemberId, dueDate = dueDate, firestoreId = UUID.randomUUID().toString())
+            taskRepository.insertTask(task)
+            pushTask(task)
         }
     }
 
     fun completeTask(task: FamilyTask) {
         viewModelScope.launch {
-            taskRepository.updateTask(task.copy(isCompleted = true))
-            triggerAutoSync()
+            val updated = task.copy(isCompleted = true)
+            taskRepository.updateTask(updated)
+            pushTask(updated)
         }
     }
 
     fun deleteTask(task: FamilyTask) {
         viewModelScope.launch {
             taskRepository.deleteTask(task)
-            triggerAutoSync()
+            pushDeleteTask(task)
         }
     }
 }

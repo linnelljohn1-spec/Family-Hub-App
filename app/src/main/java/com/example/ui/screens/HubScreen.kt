@@ -90,18 +90,9 @@ fun HubScreen(
                 },
                 actions = {
                     // Cloud Sync Action
-                    val syncStatus by viewModel.syncStatus.collectAsStateWithLifecycle()
-                    val syncIcon = when (syncStatus) {
-                        SyncStatus.SYNCING -> Icons.Default.Refresh
-                        SyncStatus.ERROR -> Icons.Default.Warning
-                        else -> Icons.Default.Cloud
-                    }
-                    val syncTint = when (syncStatus) {
-                        SyncStatus.SYNCING -> MaterialTheme.colorScheme.secondary
-                        SyncStatus.ERROR -> MaterialTheme.colorScheme.error
-                        SyncStatus.SUCCESS -> Color(0xFF2E7D32)
-                        else -> MaterialTheme.colorScheme.onSurfaceVariant
-                    }
+                    val isConnected by viewModel.isConnected.collectAsStateWithLifecycle()
+                    val syncIcon = if (isConnected) Icons.Default.Cloud else Icons.Default.CloudQueue
+                    val syncTint = if (isConnected) Color(0xFF2E7D32) else MaterialTheme.colorScheme.onSurfaceVariant
 
                     IconButton(
                         onClick = { showSyncDialog = true },
@@ -712,13 +703,12 @@ fun SyncDialog(
     onDismiss: () -> Unit
 ) {
     val syncGroupCode by viewModel.syncGroupCode.collectAsStateWithLifecycle()
-    val isAutoSyncEnabled by viewModel.isAutoSyncEnabled.collectAsStateWithLifecycle()
-    val syncStatus by viewModel.syncStatus.collectAsStateWithLifecycle()
-    val lastSyncedTime by viewModel.lastSyncedTime.collectAsStateWithLifecycle()
-    val syncErrorMessage by viewModel.syncErrorMessage.collectAsStateWithLifecycle()
+    val migrationStatus by viewModel.migrationStatus.collectAsStateWithLifecycle()
 
     val clipboardManager = LocalClipboardManager.current
     var inputCode by remember { mutableStateOf("") }
+    var showImportWarningDialog by remember { mutableStateOf(false) }
+    var pendingImportUri by remember { mutableStateOf<android.net.Uri?>(null) }
 
     val context = LocalContext.current
 
@@ -742,29 +732,40 @@ fun SyncDialog(
         }
     }
 
+    fun performImport(uri: android.net.Uri) {
+        try {
+            context.contentResolver.openInputStream(uri)?.use { inputStream ->
+                val success = viewModel.importDatabase(context, inputStream)
+                if (success) {
+                    Toast.makeText(context, "Database restored! Restarting app...", Toast.LENGTH_LONG).show()
+
+                    // Restart Activity to re-read Room DB with new data
+                    (context as? Activity)?.let { activity ->
+                        val intent = activity.intent
+                        activity.finish()
+                        activity.startActivity(intent)
+                    }
+                } else {
+                    Toast.makeText(context, "Failed to import database", Toast.LENGTH_LONG).show()
+                }
+            }
+        } catch (e: Exception) {
+            Toast.makeText(context, "Import error: ${e.message}", Toast.LENGTH_LONG).show()
+        }
+    }
+
     // Launcher to open database file (OpenDocument)
     val openDocumentLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri ->
         uri?.let {
-            try {
-                context.contentResolver.openInputStream(it)?.use { inputStream ->
-                    val success = viewModel.importDatabase(context, inputStream)
-                    if (success) {
-                        Toast.makeText(context, "Database restored! Restarting app...", Toast.LENGTH_LONG).show()
-                        
-                        // Restart Activity to re-read Room DB with new data
-                        (context as? Activity)?.let { activity ->
-                            val intent = activity.intent
-                            activity.finish()
-                            activity.startActivity(intent)
-                        }
-                    } else {
-                        Toast.makeText(context, "Failed to import database", Toast.LENGTH_LONG).show()
-                    }
-                }
-            } catch (e: Exception) {
-                Toast.makeText(context, "Import error: ${e.message}", Toast.LENGTH_LONG).show()
+            if (syncGroupCode.isNotEmpty()) {
+                // Importing while connected to live Cloud Sync would silently diverge
+                // from Firestore - warn before proceeding.
+                pendingImportUri = it
+                showImportWarningDialog = true
+            } else {
+                performImport(it)
             }
         }
     }
@@ -801,16 +802,12 @@ fun SyncDialog(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
-                // Sync status indicator
+                // Connection status indicator - Firestore listeners are always live once
+                // connected, so there's no "syncing..."/"last synced" state to show anymore.
                 Card(
                     shape = RoundedCornerShape(12.dp),
                     colors = CardDefaults.cardColors(
-                        containerColor = when (syncStatus) {
-                            SyncStatus.SYNCING -> MaterialTheme.colorScheme.secondaryContainer
-                            SyncStatus.ERROR -> MaterialTheme.colorScheme.errorContainer
-                            SyncStatus.SUCCESS -> Color(0xFFE8F5E9) // Light green container
-                            else -> MaterialTheme.colorScheme.surfaceVariant
-                        }
+                        containerColor = if (syncGroupCode.isNotEmpty()) Color(0xFFE8F5E9) else MaterialTheme.colorScheme.surfaceVariant
                     )
                 ) {
                     Row(
@@ -820,44 +817,21 @@ fun SyncDialog(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        when (syncStatus) {
-                            SyncStatus.SYNCING -> {
-                                CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
-                                Text(
-                                    text = "Synchronizing data...",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSecondaryContainer,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                            SyncStatus.ERROR -> {
-                                Icon(Icons.Default.Warning, contentDescription = null, tint = MaterialTheme.colorScheme.error)
-                                Text(
-                                    text = syncErrorMessage.ifEmpty { "Sync failed. Check your internet connection." },
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onErrorContainer,
-                                    fontWeight = FontWeight.Bold,
-                                    maxLines = 2,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            }
-                            SyncStatus.SUCCESS -> {
-                                Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color(0xFF2E7D32))
-                                Text(
-                                    text = "Connected & Synced!",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = Color(0xFF2E7D32),
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                            else -> {
-                                Icon(Icons.Default.CloudQueue, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                                Text(
-                                    text = "Cloud backup and sync inactive",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
+                        if (syncGroupCode.isNotEmpty()) {
+                            Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color(0xFF2E7D32))
+                            Text(
+                                text = "Connected - changes sync live",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = Color(0xFF2E7D32),
+                                fontWeight = FontWeight.Bold
+                            )
+                        } else {
+                            Icon(Icons.Default.CloudQueue, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(
+                                text = "Cloud sync inactive",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
                     }
                 }
@@ -893,7 +867,7 @@ fun SyncDialog(
                     Button(
                         onClick = { viewModel.joinSyncGroup(inputCode) },
                         modifier = Modifier.fillMaxWidth(),
-                        enabled = inputCode.trim().isNotEmpty() && syncStatus != SyncStatus.SYNCING,
+                        enabled = inputCode.trim().isNotEmpty(),
                         shape = RoundedCornerShape(12.dp)
                     ) {
                         Icon(Icons.Default.Login, contentDescription = null)
@@ -910,7 +884,7 @@ fun SyncDialog(
                     )
 
                     Text(
-                        text = "This will generate a new unique family code and back up your current local data to the cloud.",
+                        text = "Generates a new family code. Your existing local data stays local until you tap \"Migrate Existing Data to Cloud Sync\" below.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -918,7 +892,6 @@ fun SyncDialog(
                     FilledTonalButton(
                         onClick = { viewModel.createSyncGroup() },
                         modifier = Modifier.fillMaxWidth(),
-                        enabled = syncStatus != SyncStatus.SYNCING,
                         shape = RoundedCornerShape(12.dp)
                     ) {
                         Icon(Icons.Default.Add, contentDescription = null)
@@ -926,7 +899,7 @@ fun SyncDialog(
                         Text("Create Family Group")
                     }
                 } else {
-                    // Connected - displays code, last sync, auto-sync toggle, and actions
+                    // Connected - displays code and actions
                     HorizontalDivider()
 
                     Text(
@@ -975,89 +948,71 @@ fun SyncDialog(
 
                     HorizontalDivider()
 
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "Auto-Sync Changes",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                text = "Automatically upload modifications in background",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        Switch(
-                            checked = isAutoSyncEnabled,
-                            onCheckedChange = { viewModel.toggleAutoSync(it) }
-                        )
-                    }
-
-                    HorizontalDivider()
-
-                    // Detailed sync actions
+                    // One-time cloud backfill - explicit, single-device, guarded against
+                    // double-migration. Never runs automatically.
                     Text(
-                        text = "Sync Operations",
+                        text = "Migrate Existing Data to Cloud Sync",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold
                     )
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Button(
-                            onClick = { viewModel.syncNow() },
-                            modifier = Modifier.weight(1.0f),
-                            enabled = syncStatus != SyncStatus.SYNCING,
-                            shape = RoundedCornerShape(8.dp),
-                            contentPadding = PaddingValues(horizontal = 8.dp)
-                        ) {
-                            Icon(Icons.Default.Sync, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(Modifier.width(4.dp))
-                            Text("Sync", fontSize = 11.sp, maxLines = 1)
-                        }
-
-                        OutlinedButton(
-                            onClick = { viewModel.forceUpload() },
-                            modifier = Modifier.weight(1.0f),
-                            enabled = syncStatus != SyncStatus.SYNCING,
-                            shape = RoundedCornerShape(8.dp),
-                            contentPadding = PaddingValues(horizontal = 8.dp)
-                        ) {
-                            Icon(Icons.Default.CloudUpload, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(Modifier.width(4.dp))
-                            Text("Upload", fontSize = 11.sp, maxLines = 1)
-                        }
-
-                        OutlinedButton(
-                            onClick = { viewModel.forceDownload() },
-                            modifier = Modifier.weight(1.0f),
-                            enabled = syncStatus != SyncStatus.SYNCING,
-                            shape = RoundedCornerShape(8.dp),
-                            contentPadding = PaddingValues(horizontal = 8.dp)
-                        ) {
-                            Icon(Icons.Default.CloudDownload, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(Modifier.width(4.dp))
-                            Text("Download", fontSize = 11.sp, maxLines = 1)
-                        }
-                    }
-
-                    val dateStr = if (lastSyncedTime == 0L) "Never" else {
-                        SimpleDateFormat("MMM d, HH:mm", Locale.getDefault()).format(Date(lastSyncedTime))
-                    }
                     Text(
-                        text = "Last Synced: $dateStr",
+                        text = "If this device has local savings/calendar/task data that hasn't been pushed to this family code yet, migrate it once here. Only run this from one device.",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.fillMaxWidth(),
-                        textAlign = TextAlign.Center
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+
+                    when (migrationStatus) {
+                        MigrationStatus.MIGRATING, MigrationStatus.CHECKING -> {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                                Text("Migrating...", style = MaterialTheme.typography.bodyMedium)
+                            }
+                        }
+                        MigrationStatus.SUCCESS -> {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color(0xFF2E7D32))
+                                Text("Migration complete!", color = Color(0xFF2E7D32), fontWeight = FontWeight.Bold)
+                            }
+                        }
+                        MigrationStatus.REFUSED_NOT_EMPTY -> {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(Icons.Default.Warning, contentDescription = null, tint = MaterialTheme.colorScheme.error)
+                                Text(
+                                    text = "Cloud data already exists for this code - migrating again could create duplicates. If this is a mistake, leave the group and create/join the correct code.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.error
+                                )
+                            }
+                        }
+                        MigrationStatus.ERROR -> {
+                            Text(
+                                text = "Migration failed - check your connection and try again.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
+                        MigrationStatus.IDLE -> {}
+                    }
+
+                    FilledTonalButton(
+                        onClick = { viewModel.migrateLocalDataToCloud() },
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = migrationStatus != MigrationStatus.MIGRATING && migrationStatus != MigrationStatus.CHECKING,
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Icon(Icons.Default.CloudUpload, contentDescription = null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Migrate Existing Data to Cloud Sync")
+                    }
 
                     HorizontalDivider()
 
@@ -1082,7 +1037,7 @@ fun SyncDialog(
                 )
 
                 Text(
-                    text = "Export your complete database to a .db file for safe backup, or import/restore from an existing family_savings_db.db backup file.",
+                    text = "Local emergency snapshot only - does not represent your family's live cloud data once Cloud Sync is connected, and importing an old snapshot will NOT be reconciled back into Firestore. Use only for local recovery on a single un-synced device.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -1119,5 +1074,40 @@ fun SyncDialog(
             }
         }
     )
+
+    if (showImportWarningDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                showImportWarningDialog = false
+                pendingImportUri = null
+            },
+            title = { Text("Import while connected to Cloud Sync?") },
+            text = {
+                Text(
+                    "You are connected to Cloud Sync group \"$syncGroupCode\". Importing a backup will not update the cloud - your other devices won't see this restored data, and future edits from this device may conflict. Leave the sync group first if you intend this backup to become the new source of truth."
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showImportWarningDialog = false
+                        pendingImportUri?.let { performImport(it) }
+                        pendingImportUri = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("Import Anyway")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showImportWarningDialog = false
+                    pendingImportUri = null
+                }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
 }
 

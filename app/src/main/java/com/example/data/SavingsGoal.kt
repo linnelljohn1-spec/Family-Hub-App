@@ -15,7 +15,7 @@ import androidx.room.PrimaryKey
             onDelete = ForeignKey.CASCADE
         )
     ],
-    indices = [Index(value = ["memberId"])]
+    indices = [Index(value = ["memberId"]), Index(value = ["firestoreId"], unique = true)]
 )
 data class SavingsGoal(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
@@ -24,5 +24,6 @@ data class SavingsGoal(
     val targetAmount: Double,
     val createdAt: Long = System.currentTimeMillis(),
     val isCompleted: Boolean = false,
-    val purchaseUrl: String? = null
+    val purchaseUrl: String? = null,
+    val firestoreId: String? = null
 )

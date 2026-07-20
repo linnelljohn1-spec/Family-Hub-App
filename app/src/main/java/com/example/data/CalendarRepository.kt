@@ -7,6 +7,8 @@ class CalendarRepository(private val calendarDao: CalendarDao) {
 
     fun getEventsByDate(date: String): Flow<List<CalendarEvent>> = calendarDao.getEventsByDate(date)
 
+    suspend fun getEventByFirestoreId(firestoreId: String): CalendarEvent? = calendarDao.getEventByFirestoreId(firestoreId)
+
     suspend fun insertEvent(event: CalendarEvent): Long = calendarDao.insertEvent(event)
 
     suspend fun deleteEvent(event: CalendarEvent) = calendarDao.deleteEvent(event)

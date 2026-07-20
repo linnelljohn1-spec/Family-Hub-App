@@ -10,6 +10,10 @@ class SavingsRepository(private val savingsDao: SavingsDao) {
     fun getGoalsForMember(memberId: Int): Flow<List<SavingsGoal>> = savingsDao.getGoalsForMember(memberId)
     fun getContributionsForGoal(goalId: Int): Flow<List<Contribution>> = savingsDao.getContributionsForGoal(goalId)
 
+    suspend fun getMemberByFirestoreId(firestoreId: String): FamilyMember? = savingsDao.getMemberByFirestoreId(firestoreId)
+    suspend fun getGoalByFirestoreId(firestoreId: String): SavingsGoal? = savingsDao.getGoalByFirestoreId(firestoreId)
+    suspend fun getContributionByFirestoreId(firestoreId: String): Contribution? = savingsDao.getContributionByFirestoreId(firestoreId)
+
     suspend fun insertMember(member: FamilyMember): Long = savingsDao.insertMember(member)
     suspend fun updateMember(member: FamilyMember) = savingsDao.updateMember(member)
     suspend fun deleteMember(member: FamilyMember) = savingsDao.deleteMember(member)

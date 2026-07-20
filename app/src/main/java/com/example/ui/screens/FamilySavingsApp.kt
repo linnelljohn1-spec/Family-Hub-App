@@ -73,7 +73,7 @@ val familyColors = listOf(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun FamilySavingsApp(viewModel: SavingsViewModel, chatViewModel: ChatViewModel) {
+fun FamilySavingsApp(viewModel: SavingsViewModel, chatViewModel: ChatViewModel, familyDataSyncViewModel: FamilyDataSyncViewModel) {
     val membersWithPerformance by viewModel.familyPerformance.collectAsStateWithLifecycle()
     val monthlyReports by viewModel.monthlyReports.collectAsStateWithLifecycle()
     val activeMemberId by viewModel.activeMemberId.collectAsStateWithLifecycle()
@@ -87,9 +87,10 @@ fun FamilySavingsApp(viewModel: SavingsViewModel, chatViewModel: ChatViewModel) 
     var selectedFamilyTabId by remember { mutableStateOf(-1) } // -1 for All Members
     var activeScreen by remember { mutableStateOf("hub") } // "hub", "savings", "calendar", "tasks", "chat"
 
-    // Keep ChatViewModel's sync group + active member in sync with SavingsViewModel's state
+    // Keep ChatViewModel's / FamilyDataSyncViewModel's sync group in sync with SavingsViewModel's state
     LaunchedEffect(syncGroupCode) {
         chatViewModel.setSyncGroupCode(syncGroupCode)
+        familyDataSyncViewModel.setSyncGroupCode(syncGroupCode)
     }
     LaunchedEffect(activeMember) {
         activeMember?.let {

@@ -26,9 +26,25 @@ val MIGRATION_9_10 = object : Migration(9, 10) {
     }
 }
 
+val MIGRATION_10_11 = object : Migration(10, 11) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE family_members ADD COLUMN firestoreId TEXT DEFAULT NULL")
+        db.execSQL("ALTER TABLE savings_goals ADD COLUMN firestoreId TEXT DEFAULT NULL")
+        db.execSQL("ALTER TABLE contributions ADD COLUMN firestoreId TEXT DEFAULT NULL")
+        db.execSQL("ALTER TABLE calendar_events ADD COLUMN firestoreId TEXT DEFAULT NULL")
+        db.execSQL("ALTER TABLE family_tasks ADD COLUMN firestoreId TEXT DEFAULT NULL")
+
+        db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_family_members_firestoreId ON family_members(firestoreId)")
+        db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_savings_goals_firestoreId ON savings_goals(firestoreId)")
+        db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_contributions_firestoreId ON contributions(firestoreId)")
+        db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_calendar_events_firestoreId ON calendar_events(firestoreId)")
+        db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_family_tasks_firestoreId ON family_tasks(firestoreId)")
+    }
+}
+
 @Database(
     entities = [FamilyMember::class, SavingsGoal::class, Contribution::class, CalendarEvent::class, FamilyTask::class, ChatMessage::class],
-    version = 10,
+    version = 11,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -49,7 +65,7 @@ abstract class AppDatabase : RoomDatabase() {
                     "family_savings_db"
                 )
                 .setJournalMode(RoomDatabase.JournalMode.TRUNCATE)
-                .addMigrations(MIGRATION_9_10)
+                .addMigrations(MIGRATION_9_10, MIGRATION_10_11)
                 .fallbackToDestructiveMigration()
                 .build()
                 INSTANCE = instance

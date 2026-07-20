@@ -15,6 +15,9 @@ interface CalendarDao {
     @Query("SELECT * FROM calendar_events WHERE date = :date ORDER BY time ASC")
     fun getEventsByDate(date: String): Flow<List<CalendarEvent>>
 
+    @Query("SELECT * FROM calendar_events WHERE firestoreId = :firestoreId LIMIT 1")
+    suspend fun getEventByFirestoreId(firestoreId: String): CalendarEvent?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertEvent(event: CalendarEvent): Long
 
