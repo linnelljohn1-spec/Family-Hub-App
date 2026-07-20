@@ -73,17 +73,29 @@ val familyColors = listOf(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun FamilySavingsApp(viewModel: SavingsViewModel) {
+fun FamilySavingsApp(viewModel: SavingsViewModel, chatViewModel: ChatViewModel) {
     val membersWithPerformance by viewModel.familyPerformance.collectAsStateWithLifecycle()
     val monthlyReports by viewModel.monthlyReports.collectAsStateWithLifecycle()
     val activeMemberId by viewModel.activeMemberId.collectAsStateWithLifecycle()
+    val syncGroupCode by viewModel.syncGroupCode.collectAsStateWithLifecycle()
+    val unreadMessagesCount by chatViewModel.unreadCount.collectAsStateWithLifecycle()
 
     val activeMember = membersWithPerformance.find { it.member.id == activeMemberId }?.member
     val isActiveAdmin = activeMember?.isAdmin == true
 
     var currentBottomTab by remember { mutableStateOf(0) } // 0: Family, 1: Monthly Summary
     var selectedFamilyTabId by remember { mutableStateOf(-1) } // -1 for All Members
-    var activeScreen by remember { mutableStateOf("hub") } // "hub", "savings", "calendar"
+    var activeScreen by remember { mutableStateOf("hub") } // "hub", "savings", "calendar", "tasks", "chat"
+
+    // Keep ChatViewModel's sync group + active member in sync with SavingsViewModel's state
+    LaunchedEffect(syncGroupCode) {
+        chatViewModel.setSyncGroupCode(syncGroupCode)
+    }
+    LaunchedEffect(activeMember) {
+        activeMember?.let {
+            chatViewModel.setActiveMember(it.id, it.name, it.avatarColorHex)
+        }
+    }
 
     // Default onto the user who is logged on when activeMemberId loads
     LaunchedEffect(activeMemberId) {
@@ -126,6 +138,8 @@ fun FamilySavingsApp(viewModel: SavingsViewModel) {
                     },
                     onNavigateToCalendar = { activeScreen = "calendar" },
                     onNavigateToTasks = { activeScreen = "tasks" },
+                    onNavigateToChat = { activeScreen = "chat" },
+                    unreadMessagesCount = unreadMessagesCount,
                     onSwitchProfileClick = { showSwitchProfileDialog = true }
                 )
             }
@@ -138,6 +152,14 @@ fun FamilySavingsApp(viewModel: SavingsViewModel) {
             "tasks" -> {
                 TasksScreen(
                     viewModel = viewModel,
+                    onNavigateBack = { activeScreen = "hub" }
+                )
+            }
+            "chat" -> {
+                ChatScreen(
+                    chatViewModel = chatViewModel,
+                    syncGroupCode = syncGroupCode,
+                    activeMemberId = activeMemberId,
                     onNavigateBack = { activeScreen = "hub" }
                 )
             }

@@ -5,6 +5,7 @@ import android.content.Context
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.*
+import com.example.notifications.NotificationHelper
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
@@ -431,9 +432,11 @@ class SavingsViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch {
             members.value.find { it.id == memberId }?.let { currentMember ->
                 if (currentMember.unallocatedBalance >= amount) {
+                    val previousTotal = repository.getContributionsForGoal(goalId).first().sumOf { it.amount }
                     val updatedMember = currentMember.copy(unallocatedBalance = (currentMember.unallocatedBalance - amount).coerceAtLeast(0.0))
                     repository.updateMember(updatedMember)
                     repository.insertContribution(Contribution(goalId = goalId, amount = amount, note = note ?: "Allocated from personal fund"))
+                    checkAndNotifyGoalReached(goalId, memberId, previousTotal, previousTotal + amount)
                     triggerAutoSync()
                 }
             }
@@ -491,9 +494,29 @@ class SavingsViewModel(application: Application) : AndroidViewModel(application)
 
     fun addContribution(goalId: Int, amount: Double, note: String?) {
         viewModelScope.launch {
+            val goal = repository.allGoals.first().find { it.id == goalId }
+            val previousTotal = repository.getContributionsForGoal(goalId).first().sumOf { it.amount }
             repository.insertContribution(Contribution(goalId = goalId, amount = amount, note = note))
+            if (goal != null) {
+                checkAndNotifyGoalReached(goalId, goal.memberId, previousTotal, previousTotal + amount)
+            }
             triggerAutoSync()
         }
+    }
+
+    private suspend fun checkAndNotifyGoalReached(goalId: Int, memberId: Int, previousTotal: Double, newTotal: Double) {
+        val goal = repository.allGoals.first().find { it.id == goalId } ?: return
+        if (previousTotal >= goal.targetAmount || newTotal < goal.targetAmount) return
+
+        val memberName = repository.allMembers.first().find { it.id == memberId }?.name ?: "A family member"
+        NotificationHelper.showGoalReachedNotification(getApplication(), memberName, goal.title)
+        GoalEventService.recordGoalReached(
+            syncGroupCode = _syncGroupCode.value,
+            goalId = goal.id,
+            memberId = memberId,
+            memberName = memberName,
+            goalTitle = goal.title
+        )
     }
 
     fun deleteContribution(contribution: Contribution) {

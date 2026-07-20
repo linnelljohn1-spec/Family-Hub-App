@@ -1,0 +1,99 @@
+package com.example.notifications
+
+import android.Manifest
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.core.app.ActivityCompat
+import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
+import com.example.MainActivity
+import com.example.R
+
+object NotificationHelper {
+    const val CHANNEL_CHAT_ID = "chat_messages"
+    const val CHANNEL_GOALS_ID = "goal_reached"
+
+    fun createChannels(context: Context) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+
+        val manager = context.getSystemService(NotificationManager::class.java)
+
+        val chatChannel = NotificationChannel(
+            CHANNEL_CHAT_ID,
+            "Family Chat",
+            NotificationManager.IMPORTANCE_HIGH
+        ).apply {
+            description = "New messages in the family chat"
+        }
+
+        val goalsChannel = NotificationChannel(
+            CHANNEL_GOALS_ID,
+            "Goals Reached",
+            NotificationManager.IMPORTANCE_DEFAULT
+        ).apply {
+            description = "Notifications when a savings goal is fully funded"
+        }
+
+        manager.createNotificationChannel(chatChannel)
+        manager.createNotificationChannel(goalsChannel)
+    }
+
+    fun showChatMessageNotification(context: Context, senderName: String, text: String) {
+        val notification = NotificationCompat.Builder(context, CHANNEL_CHAT_ID)
+            .setSmallIcon(R.mipmap.ic_launcher)
+            .setContentTitle(senderName)
+            .setContentText(text)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(text))
+            .setAutoCancel(true)
+            .setContentIntent(buildOpenAppIntent(context))
+            .build()
+
+        notify(context, senderName.hashCode(), notification)
+    }
+
+    fun showGoalReachedNotification(context: Context, memberName: String, goalTitle: String) {
+        val title = "Goal reached!"
+        val text = "$memberName just fully funded \"$goalTitle\""
+
+        val notification = NotificationCompat.Builder(context, CHANNEL_GOALS_ID)
+            .setSmallIcon(R.mipmap.ic_launcher)
+            .setContentTitle(title)
+            .setContentText(text)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(text))
+            .setAutoCancel(true)
+            .setContentIntent(buildOpenAppIntent(context))
+            .build()
+
+        notify(context, goalTitle.hashCode(), notification)
+    }
+
+    private fun buildOpenAppIntent(context: Context): PendingIntent {
+        val intent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+        return PendingIntent.getActivity(
+            context,
+            0,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+    }
+
+    private fun notify(context: Context, id: Int, notification: android.app.Notification) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ActivityCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) {
+            return
+        }
+        try {
+            NotificationManagerCompat.from(context).notify(id, notification)
+        } catch (_: SecurityException) {
+            // Permission was revoked between the check above and this call; ignore.
+        }
+    }
+}

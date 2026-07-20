@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "995172483304",
+    "project_id": "family-hub-app-ecb9c",
+    "storage_bucket": "family-hub-app-ecb9c.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:995172483304:android:40cd43c087dc494577c95d",
+        "android_client_info": {
+          "package_name": "com.aistudio.familysavings.cleaninstall"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyChegeQe2GWNfxm6dsQ7XDAPre2MKDc7cM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

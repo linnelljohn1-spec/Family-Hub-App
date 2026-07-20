@@ -40,6 +40,8 @@ fun HubScreen(
     onNavigateToSavings: () -> Unit,
     onNavigateToCalendar: () -> Unit,
     onNavigateToTasks: () -> Unit,
+    onNavigateToChat: () -> Unit,
+    unreadMessagesCount: Int,
     onSwitchProfileClick: () -> Unit
 ) {
     val membersWithPerformance by viewModel.familyPerformance.collectAsStateWithLifecycle()
@@ -425,6 +427,66 @@ fun HubScreen(
                         )
                         Text(
                             text = "Create tasks, assign them to members, and mark them as done to clear them.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Icon(
+                        imageVector = Icons.Default.ChevronRight,
+                        contentDescription = "Navigate",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            // Family Chat launcher Card
+            Card(
+                onClick = onNavigateToChat,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("launcher_chat"),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    BadgedBox(
+                        badge = {
+                            if (unreadMessagesCount > 0) {
+                                Badge { Text(if (unreadMessagesCount > 99) "99+" else unreadMessagesCount.toString()) }
+                            }
+                        }
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(56.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(Color(0xFFEDE7F6)), // Soft purple background
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Chat,
+                                contentDescription = null,
+                                tint = Color(0xFF5E35B1),
+                                modifier = Modifier.size(28.dp)
+                            )
+                        }
+                    }
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Family Chat",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "Message the whole family in one shared conversation.",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
