@@ -17,6 +17,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -30,9 +31,18 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.*
 import com.example.ui.*
 import com.example.ui.theme.*
-import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.*
+
+private data class HubModule(
+    val testTag: String,
+    val icon: ImageVector,
+    val accent: Color,
+    val container: Color,
+    val label: String,
+    val badgeCount: Int,
+    val onClick: () -> Unit
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -50,17 +60,10 @@ fun HubScreen(
     val membersWithPerformance by viewModel.familyPerformance.collectAsStateWithLifecycle()
     val activeMemberId by viewModel.activeMemberId.collectAsStateWithLifecycle()
     val calendarEvents by viewModel.calendarEvents.collectAsStateWithLifecycle()
-    val tasks by viewModel.tasks.collectAsStateWithLifecycle()
 
-    val pendingTasksCount = remember(tasks) { tasks.count { !it.isCompleted } }
     val activeMember = membersWithPerformance.find { it.member.id == activeMemberId }?.member
-    
+
     var showSyncDialog by remember { mutableStateOf(false) }
-    
-    // Calculate total family savings
-    val totalSavings = membersWithPerformance.sumOf { it.totalSaved }
-    val totalWalletBalance = membersWithPerformance.sumOf { it.member.unallocatedBalance }
-    val overallFamilyFunds = totalSavings + totalWalletBalance
 
     // Filter upcoming events (today and future)
     val upcomingEvents = remember(calendarEvents) {
@@ -173,103 +176,7 @@ fun HubScreen(
                 }
             }
 
-            // Stats row (Quick Cards)
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                // Family Savings Card
-                Card(
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-                ) {
-                    Column(
-                        modifier = Modifier.padding(12.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Savings,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = "Total Assets",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Text(
-                            text = NumberFormat.getCurrencyInstance().format(overallFamilyFunds),
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-
-                // Calendar Events Card
-                Card(
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-                ) {
-                    Column(
-                        modifier = Modifier.padding(12.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Event,
-                            contentDescription = null,
-                            tint = FeatureColors.calendar
-                        )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = "Calendar",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Text(
-                            text = "${calendarEvents.size} Active",
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-
-                // Tasks Pending Card
-                Card(
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-                ) {
-                    Column(
-                        modifier = Modifier.padding(12.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.CheckCircle,
-                            contentDescription = null,
-                            tint = FeatureColors.tasks
-                        )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = "Chores",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Text(
-                            text = "$pendingTasksCount Pending",
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-            }
-
-            // Main Hub Buttons (Two Big Interactive Cards)
+            // Launch Modules - compact square buttons
             Text(
                 text = "Launch Modules",
                 style = MaterialTheme.typography.titleMedium,
@@ -277,279 +184,117 @@ fun HubScreen(
                 color = MaterialTheme.colorScheme.onBackground
             )
 
-            // Savings and Goals launcher Card
-            Card(
-                onClick = onNavigateToSavings,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("launcher_savings"),
-                shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(56.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(FeatureColors.savingsContainer),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.TrendingUp,
-                            contentDescription = null,
-                            tint = FeatureColors.savings,
-                            modifier = Modifier.size(28.dp)
-                        )
-                    }
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Family Savings & Goals",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = "Set goals, allocate pocket money, and log contributions towards shared targets.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    Icon(
-                        imageVector = Icons.Default.ChevronRight,
-                        contentDescription = "Navigate",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+            val hubModules = remember(unreadMessagesCount, openPollsCount) {
+                listOf(
+                    HubModule(
+                        testTag = "launcher_savings",
+                        icon = Icons.Default.TrendingUp,
+                        accent = FeatureColors.savings,
+                        container = FeatureColors.savingsContainer,
+                        label = "Savings",
+                        badgeCount = 0,
+                        onClick = onNavigateToSavings
+                    ),
+                    HubModule(
+                        testTag = "launcher_calendar",
+                        icon = Icons.Default.CalendarMonth,
+                        accent = FeatureColors.calendar,
+                        container = FeatureColors.calendarContainer,
+                        label = "Calendar",
+                        badgeCount = 0,
+                        onClick = onNavigateToCalendar
+                    ),
+                    HubModule(
+                        testTag = "launcher_tasks",
+                        icon = Icons.Default.CheckCircle,
+                        accent = FeatureColors.tasks,
+                        container = FeatureColors.tasksContainer,
+                        label = "Tasks",
+                        badgeCount = 0,
+                        onClick = onNavigateToTasks
+                    ),
+                    HubModule(
+                        testTag = "launcher_chat",
+                        icon = Icons.Default.Chat,
+                        accent = FeatureColors.chat,
+                        container = FeatureColors.chatContainer,
+                        label = "Chat",
+                        badgeCount = unreadMessagesCount,
+                        onClick = onNavigateToChat
+                    ),
+                    HubModule(
+                        testTag = "launcher_polls",
+                        icon = Icons.Default.HowToVote,
+                        accent = FeatureColors.polls,
+                        container = FeatureColors.pollsContainer,
+                        label = "Polls",
+                        badgeCount = openPollsCount,
+                        onClick = onNavigateToPolls
                     )
-                }
+                )
             }
 
-            // Family Calendar launcher Card
-            Card(
-                onClick = onNavigateToCalendar,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("launcher_calendar"),
-                shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
-            ) {
+            hubModules.chunked(3).forEach { rowModules ->
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(56.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(FeatureColors.calendarContainer),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.CalendarMonth,
-                            contentDescription = null,
-                            tint = FeatureColors.calendar,
-                            modifier = Modifier.size(28.dp)
-                        )
-                    }
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Shared Family Calendar",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = "Coordinate schedules, mark birthdays, and assign daily chores to members.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    Icon(
-                        imageVector = Icons.Default.ChevronRight,
-                        contentDescription = "Navigate",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-
-            // Family Tasks & Chores launcher Card
-            Card(
-                onClick = onNavigateToTasks,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("launcher_tasks"),
-                shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(56.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(FeatureColors.tasksContainer),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.CheckCircle,
-                            contentDescription = null,
-                            tint = FeatureColors.tasks,
-                            modifier = Modifier.size(28.dp)
-                        )
-                    }
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Family Tasks & Chores",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = "Create tasks, assign them to members, and mark them as done to clear them.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    Icon(
-                        imageVector = Icons.Default.ChevronRight,
-                        contentDescription = "Navigate",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-
-            // Family Chat launcher Card
-            Card(
-                onClick = onNavigateToChat,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("launcher_chat"),
-                shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    BadgedBox(
-                        badge = {
-                            if (unreadMessagesCount > 0) {
-                                Badge { Text(if (unreadMessagesCount > 99) "99+" else unreadMessagesCount.toString()) }
+                    rowModules.forEach { module ->
+                        Card(
+                            onClick = module.onClick,
+                            modifier = Modifier
+                                .weight(1f)
+                                .aspectRatio(1f)
+                                .testTag(module.testTag),
+                            shape = RoundedCornerShape(20.dp),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(8.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                BadgedBox(
+                                    badge = {
+                                        if (module.badgeCount > 0) {
+                                            Badge { Text(if (module.badgeCount > 99) "99+" else module.badgeCount.toString()) }
+                                        }
+                                    }
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(44.dp)
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .background(module.container),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = module.icon,
+                                            contentDescription = null,
+                                            tint = module.accent,
+                                            modifier = Modifier.size(24.dp)
+                                        )
+                                    }
+                                }
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text(
+                                    text = module.label,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    textAlign = TextAlign.Center,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis
+                                )
                             }
                         }
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(56.dp)
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(FeatureColors.chatContainer),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Chat,
-                                contentDescription = null,
-                                tint = FeatureColors.chat,
-                                modifier = Modifier.size(28.dp)
-                            )
-                        }
                     }
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Family Chat",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = "Message the whole family in one shared conversation.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                    repeat(3 - rowModules.size) {
+                        Spacer(modifier = Modifier.weight(1f))
                     }
-                    Icon(
-                        imageVector = Icons.Default.ChevronRight,
-                        contentDescription = "Navigate",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-
-            // Family Polls launcher Card
-            Card(
-                onClick = onNavigateToPolls,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("launcher_polls"),
-                shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    BadgedBox(
-                        badge = {
-                            if (openPollsCount > 0) {
-                                Badge { Text(if (openPollsCount > 99) "99+" else openPollsCount.toString()) }
-                            }
-                        }
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(56.dp)
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(FeatureColors.pollsContainer),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.HowToVote,
-                                contentDescription = null,
-                                tint = FeatureColors.polls,
-                                modifier = Modifier.size(28.dp)
-                            )
-                        }
-                    }
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Family Polls",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = "Ask a question, vote together, and see live results.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    Icon(
-                        imageVector = Icons.Default.ChevronRight,
-                        contentDescription = "Navigate",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
                 }
             }
 
