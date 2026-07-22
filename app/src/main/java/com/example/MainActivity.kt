@@ -10,14 +10,23 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
 import com.example.notifications.NotificationHelper
+import com.example.update.ApkInstaller
 import com.example.ui.ChatViewModel
 import com.example.ui.FamilyDataSyncViewModel
 import com.example.ui.PollsViewModel
 import com.example.ui.SavingsViewModel
+import com.example.ui.UpdateBanner
+import com.example.ui.UpdateViewModel
 import com.example.ui.screens.FamilySavingsApp
 import com.example.ui.theme.MyApplicationTheme
 import com.example.R
@@ -27,6 +36,7 @@ class MainActivity : ComponentActivity() {
   private val chatViewModel: ChatViewModel by viewModels()
   private val familyDataSyncViewModel: FamilyDataSyncViewModel by viewModels()
   private val pollsViewModel: PollsViewModel by viewModels()
+  private val updateViewModel: UpdateViewModel by viewModels()
 
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
@@ -40,6 +50,9 @@ class MainActivity : ComponentActivity() {
         val requestNotificationPermissionLauncher = rememberLauncherForActivityResult(
           contract = ActivityResultContracts.RequestPermission()
         ) { }
+        val requestInstallPermissionLauncher = rememberLauncherForActivityResult(
+          contract = ActivityResultContracts.StartActivityForResult()
+        ) { }
 
         LaunchedEffect(Unit) {
           if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
@@ -49,12 +62,35 @@ class MainActivity : ComponentActivity() {
           }
         }
 
-        FamilySavingsApp(
-          viewModel = viewModel,
-          chatViewModel = chatViewModel,
-          familyDataSyncViewModel = familyDataSyncViewModel,
-          pollsViewModel = pollsViewModel
-        )
+        LaunchedEffect(Unit) {
+          updateViewModel.checkForUpdateOnce()
+        }
+
+        val updateUiState by updateViewModel.uiState.collectAsState()
+
+        Column(modifier = Modifier.fillMaxSize()) {
+          UpdateBanner(
+            state = updateUiState,
+            onUpdateClick = { info -> updateViewModel.startDownload(info) },
+            onInstallClick = { apkFile ->
+              if (ApkInstaller.canRequestInstallPackages(context)) {
+                ApkInstaller.installApk(context, apkFile)
+              } else {
+                requestInstallPermissionLauncher.launch(ApkInstaller.installPermissionSettingsIntent(context))
+              }
+            },
+            onDismiss = { versionCode -> updateViewModel.dismiss(versionCode) }
+          )
+
+          Box(modifier = Modifier.weight(1f)) {
+            FamilySavingsApp(
+              viewModel = viewModel,
+              chatViewModel = chatViewModel,
+              familyDataSyncViewModel = familyDataSyncViewModel,
+              pollsViewModel = pollsViewModel
+            )
+          }
+        }
       }
     }
   }
