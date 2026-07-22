@@ -111,6 +111,8 @@ object FamilyDataSyncService {
             "isCompleted" to event.isCompleted,
             "isAllDay" to event.isAllDay,
             "endTime" to event.endTime,
+            "repeatRule" to event.repeatRule,
+            "seriesId" to event.seriesId,
             "updatedAt" to System.currentTimeMillis()
         )
         familyDoc(syncGroupCode).collection("calendarEvents").document(firestoreId)

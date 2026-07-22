@@ -16,6 +16,9 @@ interface TaskDao {
     @Query("SELECT * FROM family_tasks WHERE firestoreId = :firestoreId LIMIT 1")
     suspend fun getTaskByFirestoreId(firestoreId: String): FamilyTask?
 
+    @Query("SELECT * FROM family_tasks WHERE id = :id LIMIT 1")
+    suspend fun getTaskById(id: Int): FamilyTask?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertTask(task: FamilyTask): Long
 

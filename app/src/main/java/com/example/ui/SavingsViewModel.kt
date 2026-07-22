@@ -6,6 +6,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.*
 import com.example.notifications.NotificationHelper
+import com.example.notifications.ReminderScheduler
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
@@ -191,6 +192,74 @@ class SavingsViewModel(application: Application) : AndroidViewModel(application)
                 }
             }
         }
+
+        // Extend recurring event series windows on every app open.
+        viewModelScope.launch {
+            topUpAllRecurringSeries()
+        }
+    }
+
+    // ---- Recurring calendar events ----
+
+    private fun scheduleReminderForEvent(event: CalendarEvent) {
+        if (!event.isCompleted) {
+            ReminderScheduler.scheduleCalendarEventReminder(getApplication(), event)
+        } else {
+            ReminderScheduler.cancelCalendarEventReminder(getApplication(), event.id)
+        }
+    }
+
+    private fun cancelReminderForEvent(event: CalendarEvent) {
+        ReminderScheduler.cancelCalendarEventReminder(getApplication(), event.id)
+    }
+
+    private fun scheduleReminderForTask(task: FamilyTask) {
+        if (!task.isCompleted) {
+            ReminderScheduler.scheduleTaskReminder(getApplication(), task)
+        } else {
+            ReminderScheduler.cancelTaskReminder(getApplication(), task.id)
+        }
+    }
+
+    private fun cancelReminderForTask(task: FamilyTask) {
+        ReminderScheduler.cancelTaskReminder(getApplication(), task.id)
+    }
+
+    // Materializes concrete occurrence rows for a series up to its rolling window end,
+    // from the given anchor row - not chaining off the previously generated row, to avoid drift.
+    private suspend fun topUpSeries(seriesId: String, repeatRule: String, anchorEvent: CalendarEvent) {
+        val existingDates = calendarRepository.getEventsBySeriesId(seriesId).map { it.date }.toMutableSet()
+        val windowEnd = RecurrenceGenerator.windowEndDate(repeatRule)
+
+        var n = 1
+        while (n <= 400) { // safety valve against runaway generation
+            val nextDate = RecurrenceGenerator.occurrenceDate(anchorEvent.date, repeatRule, n)
+            if (nextDate > windowEnd) break
+            if (nextDate !in existingDates) {
+                val occurrence = anchorEvent.copy(
+                    id = 0,
+                    date = nextDate,
+                    isCompleted = false,
+                    firestoreId = UUID.randomUUID().toString()
+                )
+                val rowId = calendarRepository.insertEvent(occurrence)
+                val savedOccurrence = occurrence.copy(id = rowId.toInt())
+                pushCalendarEvent(savedOccurrence)
+                scheduleReminderForEvent(savedOccurrence)
+                existingDates.add(nextDate)
+            }
+            n++
+        }
+    }
+
+    // Runs on app open so every series' generation window keeps extending as time passes.
+    private suspend fun topUpAllRecurringSeries() {
+        val seriesIds = calendarRepository.allEvents.first().mapNotNull { it.seriesId }.distinct()
+        for (seriesId in seriesIds) {
+            val seriesEvents = calendarRepository.getEventsBySeriesId(seriesId)
+            val anchor = seriesEvents.minByOrNull { it.date } ?: continue
+            topUpSeries(seriesId, anchor.repeatRule, anchor)
+        }
     }
 
     fun setActiveMember(id: Int) {
@@ -328,9 +397,11 @@ class SavingsViewModel(application: Application) : AndroidViewModel(application)
         category: String,
         createdByMemberId: Int,
         isAllDay: Boolean = false,
-        endTime: String? = null
+        endTime: String? = null,
+        repeatRule: String = "NONE"
     ) {
         viewModelScope.launch {
+            val seriesId = if (repeatRule != "NONE") UUID.randomUUID().toString() else null
             val event = CalendarEvent(
                 title = title,
                 description = description,
@@ -340,18 +411,87 @@ class SavingsViewModel(application: Application) : AndroidViewModel(application)
                 createdByMemberId = createdByMemberId,
                 isAllDay = isAllDay,
                 endTime = endTime,
-                firestoreId = UUID.randomUUID().toString()
+                firestoreId = UUID.randomUUID().toString(),
+                repeatRule = repeatRule,
+                seriesId = seriesId
             )
-            calendarRepository.insertEvent(event)
-            pushCalendarEvent(event)
+            val rowId = calendarRepository.insertEvent(event)
+            val savedEvent = event.copy(id = rowId.toInt())
+            pushCalendarEvent(savedEvent)
+            scheduleReminderForEvent(savedEvent)
+            if (seriesId != null) {
+                topUpSeries(seriesId, repeatRule, savedEvent)
+            }
+        }
+    }
+
+    // applyToWholeSeries = true also updates every same-series occurrence from this
+    // event's date forward; false (or a standalone event) only touches this row.
+    fun updateCalendarEventOccurrence(event: CalendarEvent, applyToWholeSeries: Boolean) {
+        viewModelScope.launch {
+            val seriesId = event.seriesId
+            if (!applyToWholeSeries || seriesId == null) {
+                calendarRepository.insertEvent(event)
+                pushCalendarEvent(event)
+                scheduleReminderForEvent(event)
+                return@launch
+            }
+            val seriesEvents = calendarRepository.getEventsBySeriesId(seriesId).filter { it.date >= event.date }
+            for (seriesEvent in seriesEvents) {
+                val updated = seriesEvent.copy(
+                    title = event.title,
+                    description = event.description,
+                    category = event.category,
+                    time = event.time,
+                    endTime = event.endTime,
+                    isAllDay = event.isAllDay,
+                    createdByMemberId = event.createdByMemberId
+                )
+                calendarRepository.insertEvent(updated)
+                pushCalendarEvent(updated)
+                scheduleReminderForEvent(updated)
+            }
+        }
+    }
+
+    fun updateCalendarEvent(event: CalendarEvent) {
+        updateCalendarEventOccurrence(event, applyToWholeSeries = false)
+    }
+
+    // Turns a previously-standalone event into the anchor of a brand new recurring series.
+    fun addRecurrenceToExistingEvent(event: CalendarEvent, repeatRule: String) {
+        viewModelScope.launch {
+            val seriesId = UUID.randomUUID().toString()
+            val updated = event.copy(repeatRule = repeatRule, seriesId = seriesId)
+            calendarRepository.insertEvent(updated)
+            pushCalendarEvent(updated)
+            scheduleReminderForEvent(updated)
+            topUpSeries(seriesId, repeatRule, updated)
+        }
+    }
+
+    // applyToWholeSeries = true also deletes every same-series occurrence from this
+    // event's date forward; false (or a standalone event) only deletes this row.
+    fun deleteCalendarEventOccurrence(event: CalendarEvent, applyToWholeSeries: Boolean) {
+        viewModelScope.launch {
+            val seriesId = event.seriesId
+            if (!applyToWholeSeries || seriesId == null) {
+                calendarRepository.deleteEvent(event)
+                pushDeleteCalendarEvent(event)
+                cancelReminderForEvent(event)
+                return@launch
+            }
+            val seriesEvents = calendarRepository.getEventsBySeriesId(seriesId).filter { it.date >= event.date }
+            for (seriesEvent in seriesEvents) {
+                calendarRepository.deleteEvent(seriesEvent)
+                pushDeleteCalendarEvent(seriesEvent)
+                cancelReminderForEvent(seriesEvent)
+            }
         }
     }
 
     fun deleteCalendarEvent(event: CalendarEvent) {
-        viewModelScope.launch {
-            calendarRepository.deleteEvent(event)
-            pushDeleteCalendarEvent(event)
-        }
+        deleteCalendarEventOccurrence(event, applyToWholeSeries = false)
     }
 
     fun toggleCalendarEventCompletion(event: CalendarEvent) {
@@ -359,13 +499,7 @@ class SavingsViewModel(application: Application) : AndroidViewModel(application)
             val updated = event.copy(isCompleted = !event.isCompleted)
             calendarRepository.insertEvent(updated)
             pushCalendarEvent(updated)
-        }
-    }
-
-    fun updateCalendarEvent(event: CalendarEvent) {
-        viewModelScope.launch {
-            calendarRepository.insertEvent(event)
-            pushCalendarEvent(event)
+            scheduleReminderForEvent(updated)
         }
     }
 
@@ -742,8 +876,10 @@ class SavingsViewModel(application: Application) : AndroidViewModel(application)
     fun addTask(title: String, description: String, assignedMemberId: Int, dueDate: String = "") {
         viewModelScope.launch {
             val task = FamilyTask(title = title, description = description, assignedMemberId = assignedMemberId, dueDate = dueDate, firestoreId = UUID.randomUUID().toString())
-            taskRepository.insertTask(task)
-            pushTask(task)
+            val rowId = taskRepository.insertTask(task)
+            val savedTask = task.copy(id = rowId.toInt())
+            pushTask(savedTask)
+            scheduleReminderForTask(savedTask)
         }
     }
 
@@ -752,6 +888,7 @@ class SavingsViewModel(application: Application) : AndroidViewModel(application)
             val updated = task.copy(isCompleted = true)
             taskRepository.updateTask(updated)
             pushTask(updated)
+            cancelReminderForTask(updated)
         }
     }
 
@@ -759,6 +896,7 @@ class SavingsViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch {
             taskRepository.deleteTask(task)
             pushDeleteTask(task)
+            cancelReminderForTask(task)
         }
     }
 }

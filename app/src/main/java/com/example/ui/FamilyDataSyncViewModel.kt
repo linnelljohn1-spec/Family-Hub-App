@@ -12,6 +12,7 @@ import com.example.data.FamilyTask
 import com.example.data.SavingsGoal
 import com.example.data.SavingsRepository
 import com.example.data.TaskRepository
+import com.example.notifications.ReminderScheduler
 import com.google.firebase.firestore.DocumentChange
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestore
@@ -234,7 +235,10 @@ class FamilyDataSyncViewModel(application: Application) : AndroidViewModel(appli
     private suspend fun handleCalendarEventChange(change: DocumentChange) {
         val doc = change.document
         if (change.type == DocumentChange.Type.REMOVED) {
-            calendarRepository.getEventByFirestoreId(doc.id)?.let { calendarRepository.deleteEvent(it) }
+            calendarRepository.getEventByFirestoreId(doc.id)?.let {
+                calendarRepository.deleteEvent(it)
+                ReminderScheduler.cancelCalendarEventReminder(getApplication(), it.id)
+            }
             return
         }
         if (!tryUpsertCalendarEvent(doc)) {
@@ -262,10 +266,18 @@ class FamilyDataSyncViewModel(application: Application) : AndroidViewModel(appli
             isCompleted = data["isCompleted"] as? Boolean ?: false,
             isAllDay = data["isAllDay"] as? Boolean ?: false,
             endTime = data["endTime"] as? String,
-            firestoreId = doc.id
+            firestoreId = doc.id,
+            repeatRule = data["repeatRule"] as? String ?: "NONE",
+            seriesId = data["seriesId"] as? String
         )
         // No FK/CASCADE relationships declared on CalendarEvent, safe as REPLACE-insert.
-        calendarRepository.insertEvent(event)
+        val rowId = calendarRepository.insertEvent(event)
+        val savedEvent = if (event.id == 0) event.copy(id = rowId.toInt()) else event
+        if (!savedEvent.isCompleted) {
+            ReminderScheduler.scheduleCalendarEventReminder(getApplication(), savedEvent)
+        } else {
+            ReminderScheduler.cancelCalendarEventReminder(getApplication(), savedEvent.id)
+        }
         return true
     }
 
@@ -285,7 +297,10 @@ class FamilyDataSyncViewModel(application: Application) : AndroidViewModel(appli
     private suspend fun handleTaskChange(change: DocumentChange) {
         val doc = change.document
         if (change.type == DocumentChange.Type.REMOVED) {
-            taskRepository.getTaskByFirestoreId(doc.id)?.let { taskRepository.deleteTask(it) }
+            taskRepository.getTaskByFirestoreId(doc.id)?.let {
+                taskRepository.deleteTask(it)
+                ReminderScheduler.cancelTaskReminder(getApplication(), it.id)
+            }
             return
         }
         if (!tryUpsertTask(doc)) {
@@ -312,7 +327,13 @@ class FamilyDataSyncViewModel(application: Application) : AndroidViewModel(appli
             firestoreId = doc.id
         )
         // No FK/CASCADE relationships declared on FamilyTask, safe as REPLACE-insert.
-        taskRepository.insertTask(task)
+        val rowId = taskRepository.insertTask(task)
+        val savedTask = if (task.id == 0) task.copy(id = rowId.toInt()) else task
+        if (!savedTask.isCompleted) {
+            ReminderScheduler.scheduleTaskReminder(getApplication(), savedTask)
+        } else {
+            ReminderScheduler.cancelTaskReminder(getApplication(), savedTask.id)
+        }
         return true
     }
 
