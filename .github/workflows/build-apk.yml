@@ -2,7 +2,7 @@ name: Build Android Release APK
 
 on:
   push:
-    branches: [ "**" ]
+    branches: [ "main", "master" ]
   pull_request:
     branches: [ "main", "master" ]
   workflow_dispatch:
@@ -15,6 +15,19 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+
+      # PR builds land under a "PR" folder/artifact; builds from a merge to
+      # main/master land under a "Main" folder/artifact, so the two never mix.
+      - name: Determine build channel
+        id: channel
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "folder=PR" >> "$GITHUB_OUTPUT"
+            echo "artifact_name=PR-${{ github.event.pull_request.number }}-family-hub-apk" >> "$GITHUB_OUTPUT"
+          else
+            echo "folder=Main" >> "$GITHUB_OUTPUT"
+            echo "artifact_name=Main-family-hub-apk" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Set up JDK 21
         uses: actions/setup-java@v4
@@ -82,27 +95,29 @@ jobs:
       # --- NEW STEP: ALIGNS AND FORCES STABLE SIGNING SCHEMES ---
       - name: Align and Verify APK Package
         run: |
-          mkdir -p apk-output
+          OUT_DIR="apk-output/${{ steps.channel.outputs.folder }}"
+          mkdir -p "$OUT_DIR"
           # Find the actual compiled release APK
           RAW_APK=$(find . -path "*/build/outputs/apk/release/*.apk" ! -name "*-unsigned.apk" | head -n 1)
-          
+
           if [ -z "$RAW_APK" ]; then
             RAW_APK=$(find . -path "*/build/outputs/apk/release/*.apk" | head -n 1)
           fi
-          
+
           echo "Found compiled APK at: $RAW_APK"
-          
+
           # Use the Android Build Tools inside the runner environment to verify or realign if needed
           BUILD_TOOLS_DIR=$(dirname $(find /usr/local/lib/android/sdk/build-tools -name "apksigner" | sort -V | tail -n 1))
           echo "Using Android Build Tools from: $BUILD_TOOLS_DIR"
-          
-          # Copy to output and apply an explicit apksigner enforcement pass
-          cp "$RAW_APK" apk-output/family-hub-release.apk
-          $BUILD_TOOLS_DIR/apksigner sign --ks my-upload-key.jks --ks-pass pass:${{ secrets.RELEASE_KEYSTORE_PASSWORD }} --key-pass pass:${{ secrets.RELEASE_KEY_PASSWORD }} --ks-key-alias ${{ secrets.RELEASE_KEY_ALIAS }} apk-output/family-hub-release.apk || echo "Already signed natively"
 
-      # Saves and exposes the clean, single APK directly at the zip root
-      - name: Upload Release APK
+          # Copy to output and apply an explicit apksigner enforcement pass
+          cp "$RAW_APK" "$OUT_DIR/family-hub-release.apk"
+          $BUILD_TOOLS_DIR/apksigner sign --ks my-upload-key.jks --ks-pass pass:${{ secrets.RELEASE_KEYSTORE_PASSWORD }} --key-pass pass:${{ secrets.RELEASE_KEY_PASSWORD }} --ks-key-alias ${{ secrets.RELEASE_KEY_ALIAS }} "$OUT_DIR/family-hub-release.apk" || echo "Already signed natively"
+
+      # PR builds upload as a distinct "PR" artifact; main/master builds upload
+      # as the "Main" artifact - each keeps its own folder inside the zip.
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: app-release-apk
+          name: ${{ steps.channel.outputs.artifact_name }}
           path: apk-output/
