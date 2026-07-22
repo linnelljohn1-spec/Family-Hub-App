@@ -7,12 +7,15 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
+import android.util.Log
 import com.example.data.AppDatabase
 import com.example.data.CalendarEvent
 import com.example.data.FamilyTask
 import kotlinx.coroutines.flow.first
 import java.text.SimpleDateFormat
 import java.util.Locale
+
+private const val TAG = "ReminderScheduler"
 
 object ReminderScheduler {
     private const val DEFAULT_REMINDER_TIME = "09:00"
@@ -26,34 +29,45 @@ object ReminderScheduler {
         }
     }
 
+    // Reminders are best-effort: any failure here (permission quirks, OEM/emulator
+    // restrictions on alarms, etc.) must never take down the calendar/task action
+    // that triggered it, so every entry point below is wrapped in a catch-all.
     @SuppressLint("MissingPermission")
     private fun schedule(context: Context, requestCode: Int, uri: Uri, triggerAtMillis: Long) {
         if (triggerAtMillis <= System.currentTimeMillis()) return
 
-        val intent = Intent(context, ReminderBroadcastReceiver::class.java).apply { data = uri }
-        val pendingIntent = PendingIntent.getBroadcast(
-            context, requestCode, intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
+        try {
+            val intent = Intent(context, ReminderBroadcastReceiver::class.java).apply { data = uri }
+            val pendingIntent = PendingIntent.getBroadcast(
+                context, requestCode, intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
 
-        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-        val canScheduleExact = Build.VERSION.SDK_INT < Build.VERSION_CODES.S || alarmManager.canScheduleExactAlarms()
-        if (canScheduleExact) {
-            alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAtMillis, pendingIntent)
-        } else {
-            alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAtMillis, pendingIntent)
+            val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
+            val canScheduleExact = Build.VERSION.SDK_INT < Build.VERSION_CODES.S || alarmManager.canScheduleExactAlarms()
+            if (canScheduleExact) {
+                alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAtMillis, pendingIntent)
+            } else {
+                alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAtMillis, pendingIntent)
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to schedule reminder for $uri", e)
         }
     }
 
     private fun cancel(context: Context, requestCode: Int, uri: Uri) {
-        val intent = Intent(context, ReminderBroadcastReceiver::class.java).apply { data = uri }
-        val pendingIntent = PendingIntent.getBroadcast(
-            context, requestCode, intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-        alarmManager.cancel(pendingIntent)
-        pendingIntent.cancel()
+        try {
+            val intent = Intent(context, ReminderBroadcastReceiver::class.java).apply { data = uri }
+            val pendingIntent = PendingIntent.getBroadcast(
+                context, requestCode, intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
+            alarmManager.cancel(pendingIntent)
+            pendingIntent.cancel()
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to cancel reminder for $uri", e)
+        }
     }
 
     private fun calendarEventUri(eventId: Int): Uri = Uri.parse("reminder://calendarEvent/$eventId")
