@@ -26,6 +26,7 @@ import com.example.ui.FamilyDataSyncViewModel
 import com.example.ui.PollsViewModel
 import com.example.ui.SavingsViewModel
 import com.example.ui.UpdateBanner
+import com.example.ui.UpdateUiState
 import com.example.ui.UpdateViewModel
 import com.example.ui.screens.FamilySavingsApp
 import com.example.ui.theme.MyApplicationTheme
@@ -52,7 +53,14 @@ class MainActivity : ComponentActivity() {
         ) { }
         val requestInstallPermissionLauncher = rememberLauncherForActivityResult(
           contract = ActivityResultContracts.StartActivityForResult()
-        ) { }
+        ) {
+          // Returning from the "allow installs from this source" settings screen:
+          // retry the install now that the permission may have been granted.
+          val state = updateViewModel.uiState.value
+          if (state is UpdateUiState.ReadyToInstall && ApkInstaller.canRequestInstallPackages(context)) {
+            ApkInstaller.installApk(context, state.apkFile)
+          }
+        }
 
         LaunchedEffect(Unit) {
           if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
