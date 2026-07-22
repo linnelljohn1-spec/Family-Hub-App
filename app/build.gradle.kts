@@ -17,8 +17,10 @@ android {
     applicationId = "com.aistudio.familysavings.cleaninstall"
     minSdk = 24
     targetSdk = 35
-    versionCode = 2
-    versionName = "1.1"
+    // CI injects these via -Pandroid.injected.version.code/name so each build gets a
+    // unique, increasing versionCode (required for in-place update installs to work).
+    versionCode = (project.findProperty("android.injected.version.code") as String?)?.toIntOrNull() ?: 2
+    versionName = project.findProperty("android.injected.version.name") as String? ?: "1.1"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
