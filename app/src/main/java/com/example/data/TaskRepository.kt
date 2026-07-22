@@ -7,6 +7,8 @@ class TaskRepository(private val taskDao: TaskDao) {
 
     suspend fun getTaskByFirestoreId(firestoreId: String): FamilyTask? = taskDao.getTaskByFirestoreId(firestoreId)
 
+    suspend fun getTaskById(id: Int): FamilyTask? = taskDao.getTaskById(id)
+
     suspend fun insertTask(task: FamilyTask): Long = taskDao.insertTask(task)
     suspend fun updateTask(task: FamilyTask) = taskDao.updateTask(task)
     suspend fun deleteTask(task: FamilyTask) = taskDao.deleteTask(task)

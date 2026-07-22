@@ -18,6 +18,8 @@ object NotificationHelper {
     const val CHANNEL_CHAT_ID = "chat_messages"
     const val CHANNEL_GOALS_ID = "goal_reached"
     const val CHANNEL_POLLS_ID = "new_polls"
+    const val CHANNEL_CALENDAR_REMINDERS_ID = "calendar_event_reminders"
+    const val CHANNEL_TASK_REMINDERS_ID = "task_reminders"
 
     fun createChannels(context: Context) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
@@ -48,9 +50,27 @@ object NotificationHelper {
             description = "New polls created by family members"
         }
 
+        val calendarRemindersChannel = NotificationChannel(
+            CHANNEL_CALENDAR_REMINDERS_ID,
+            "Calendar Reminders",
+            NotificationManager.IMPORTANCE_HIGH
+        ).apply {
+            description = "Reminders for upcoming family calendar events"
+        }
+
+        val taskRemindersChannel = NotificationChannel(
+            CHANNEL_TASK_REMINDERS_ID,
+            "Task Reminders",
+            NotificationManager.IMPORTANCE_HIGH
+        ).apply {
+            description = "Reminders for tasks due today"
+        }
+
         manager.createNotificationChannel(chatChannel)
         manager.createNotificationChannel(goalsChannel)
         manager.createNotificationChannel(pollsChannel)
+        manager.createNotificationChannel(calendarRemindersChannel)
+        manager.createNotificationChannel(taskRemindersChannel)
     }
 
     fun showChatMessageNotification(context: Context, senderName: String, text: String) {
@@ -95,6 +115,36 @@ object NotificationHelper {
             .build()
 
         notify(context, question.hashCode(), notification)
+    }
+
+    fun showCalendarEventReminderNotification(context: Context, eventId: Int, title: String, whenLabel: String) {
+        val text = "$title - $whenLabel"
+
+        val notification = NotificationCompat.Builder(context, CHANNEL_CALENDAR_REMINDERS_ID)
+            .setSmallIcon(R.mipmap.ic_launcher)
+            .setContentTitle("Upcoming event")
+            .setContentText(text)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(text))
+            .setAutoCancel(true)
+            .setContentIntent(buildOpenAppIntent(context))
+            .build()
+
+        notify(context, "calendar_event_$eventId".hashCode(), notification)
+    }
+
+    fun showTaskReminderNotification(context: Context, taskId: Int, title: String, dueDateLabel: String) {
+        val text = "$title - due $dueDateLabel"
+
+        val notification = NotificationCompat.Builder(context, CHANNEL_TASK_REMINDERS_ID)
+            .setSmallIcon(R.mipmap.ic_launcher)
+            .setContentTitle("Task reminder")
+            .setContentText(text)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(text))
+            .setAutoCancel(true)
+            .setContentIntent(buildOpenAppIntent(context))
+            .build()
+
+        notify(context, "task_$taskId".hashCode(), notification)
     }
 
     private fun buildOpenAppIntent(context: Context): PendingIntent {

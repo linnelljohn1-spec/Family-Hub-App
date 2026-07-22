@@ -65,6 +65,10 @@ fun CalendarScreen(
     var showEditEventDialog by remember { mutableStateOf(false) }
     var eventToEdit by remember { mutableStateOf<CalendarEvent?>(null) }
 
+    // Delete scope confirmation state (for recurring event occurrences)
+    var showDeleteScopeDialog by remember { mutableStateOf(false) }
+    var eventToDelete by remember { mutableStateOf<CalendarEvent?>(null) }
+
     // Helper to generate list of days dynamically for currentYear and currentMonth
     val daysInMonth = remember(currentYear, currentMonth) {
         val calendar = Calendar.getInstance()
@@ -646,7 +650,14 @@ fun CalendarScreen(
                                             }
                                             
                                             IconButton(
-                                                onClick = { viewModel.deleteCalendarEvent(event) },
+                                                onClick = {
+                                                    if (event.seriesId != null) {
+                                                        eventToDelete = event
+                                                        showDeleteScopeDialog = true
+                                                    } else {
+                                                        viewModel.deleteCalendarEvent(event)
+                                                    }
+                                                },
                                                 modifier = Modifier.size(24.dp).testTag("btn_delete_event_${event.id}")
                                             ) {
                                                 Icon(
@@ -753,12 +764,65 @@ fun CalendarScreen(
         }
     }
 
+    // --- Delete Scope Confirmation Dialog (recurring events) ---
+    if (showDeleteScopeDialog && eventToDelete != null) {
+        val event = eventToDelete!!
+        Dialog(onDismissRequest = { showDeleteScopeDialog = false }) {
+            Card(
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp)
+            ) {
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(24.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Text(
+                        text = "Delete...",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Button(
+                        onClick = {
+                            viewModel.deleteCalendarEventOccurrence(event, applyToWholeSeries = false)
+                            showDeleteScopeDialog = false
+                            eventToDelete = null
+                        },
+                        modifier = Modifier.fillMaxWidth().testTag("btn_delete_scope_just_this")
+                    ) {
+                        Text("Just this event")
+                    }
+                    Button(
+                        onClick = {
+                            viewModel.deleteCalendarEventOccurrence(event, applyToWholeSeries = true)
+                            showDeleteScopeDialog = false
+                            eventToDelete = null
+                        },
+                        modifier = Modifier.fillMaxWidth().testTag("btn_delete_scope_this_and_following")
+                    ) {
+                        Text("This and following events")
+                    }
+                    TextButton(
+                        onClick = {
+                            showDeleteScopeDialog = false
+                            eventToDelete = null
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Cancel")
+                    }
+                }
+            }
+        }
+    }
+
     // --- Add Event Dialog ---
     if (showAddEventDialog) {
         var eventTitle by remember { mutableStateOf("") }
         var eventDescription by remember { mutableStateOf("") }
         var eventDate by remember { mutableStateOf(selectedDate) }
         var selectedCategory by remember { mutableStateOf("Family Outing") }
+        var selectedRepeatRule by remember { mutableStateOf("NONE") }
         var assignedMemberId by remember { mutableStateOf(-1) } // -1 for All / Family-wide
         
         var isAllDay by remember { mutableStateOf(false) }
@@ -1003,6 +1067,29 @@ fun CalendarScreen(
                         }
                     }
 
+                    // Repeat Selection Chips
+                    Text(
+                        text = "Repeat",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        val repeatOptions = listOf("NONE" to "None", "WEEKLY" to "Weekly", "MONTHLY" to "Monthly", "YEARLY" to "Yearly")
+                        repeatOptions.forEach { (value, label) ->
+                            FilterChip(
+                                selected = selectedRepeatRule == value,
+                                onClick = { selectedRepeatRule = value },
+                                label = { Text(label) },
+                                modifier = Modifier.testTag("chip_repeat_$value")
+                            )
+                        }
+                    }
+
                     // Assignee Selection List
                     Text(
                         text = "Assign to Member",
@@ -1124,7 +1211,8 @@ fun CalendarScreen(
                                             category = selectedCategory,
                                             createdByMemberId = assignedMemberId,
                                             isAllDay = isAllDay,
-                                            endTime = if (isAllDay || !hasEndTime) null else endTime.trim()
+                                            endTime = if (isAllDay || !hasEndTime) null else endTime.trim(),
+                                            repeatRule = selectedRepeatRule
                                         )
                                         // Update parent calendar state to focus on newly created event date
                                         selectedDate = trimmedDate
@@ -1360,7 +1448,10 @@ fun CalendarScreen(
         var eventDescription by remember(event.id) { mutableStateOf(event.description) }
         var eventDate by remember(event.id) { mutableStateOf(event.date) }
         var selectedCategory by remember(event.id) { mutableStateOf(event.category) }
+        var selectedRepeatRule by remember(event.id) { mutableStateOf(event.repeatRule) }
         var assignedMemberId by remember(event.id) { mutableStateOf(event.createdByMemberId) }
+        var showRecurrenceScopeDialog by remember(event.id) { mutableStateOf(false) }
+        var pendingUpdatedEvent by remember(event.id) { mutableStateOf<CalendarEvent?>(null) }
         
         var isAllDay by remember(event.id) { mutableStateOf(event.isAllDay) }
         var hasEndTime by remember(event.id) { mutableStateOf(event.endTime != null) }
@@ -1605,6 +1696,39 @@ fun CalendarScreen(
                         }
                     }
 
+                    // Repeat Selection Chips - only editable for standalone (non-series) events.
+                    // Changing an existing series' repeat rule isn't supported; use "delete
+                    // this and following" to end a series instead.
+                    Text(
+                        text = "Repeat",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    if (event.seriesId == null) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            val repeatOptions = listOf("NONE" to "None", "WEEKLY" to "Weekly", "MONTHLY" to "Monthly", "YEARLY" to "Yearly")
+                            repeatOptions.forEach { (value, label) ->
+                                FilterChip(
+                                    selected = selectedRepeatRule == value,
+                                    onClick = { selectedRepeatRule = value },
+                                    label = { Text(label) },
+                                    modifier = Modifier.testTag("edit_chip_repeat_$value")
+                                )
+                            }
+                        }
+                    } else {
+                        Text(
+                            text = "Part of a recurring series (${event.repeatRule.lowercase()}). Delete \"this and following\" to end it.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
                     // Assignee Selection List
                     Text(
                         text = "Assign to Member",
@@ -1726,20 +1850,89 @@ fun CalendarScreen(
                                             category = selectedCategory,
                                             createdByMemberId = assignedMemberId,
                                             isAllDay = isAllDay,
-                                            endTime = if (isAllDay || !hasEndTime) null else endTime.trim()
+                                            endTime = if (isAllDay || !hasEndTime) null else endTime.trim(),
+                                            repeatRule = selectedRepeatRule,
+                                            seriesId = if (selectedRepeatRule == "NONE") null else event.seriesId
                                         )
-                                        viewModel.updateCalendarEvent(updatedEvent)
                                         // Update parent calendar state to focus on newly updated event date
                                         selectedDate = trimmedDate
                                         currentYear = yr
                                         currentMonth = mo - 1
-                                        showEditEventDialog = false
+
+                                        if (event.seriesId != null) {
+                                            // Editing a row that's part of an existing series - ask scope first.
+                                            pendingUpdatedEvent = updatedEvent
+                                            showRecurrenceScopeDialog = true
+                                        } else if (selectedRepeatRule != "NONE") {
+                                            // Starting a new recurrence from a previously standalone event.
+                                            viewModel.addRecurrenceToExistingEvent(updatedEvent, selectedRepeatRule)
+                                            showEditEventDialog = false
+                                        } else {
+                                            viewModel.updateCalendarEvent(updatedEvent)
+                                            showEditEventDialog = false
+                                        }
                                     }
                                 }
                             },
                             modifier = Modifier.testTag("btn_save_edit_event")
                         ) {
                             Text("Save Changes")
+                        }
+                    }
+                }
+            }
+        }
+
+        // Recurrence scope confirmation - shown when saving edits to an event that's part of a series.
+        if (showRecurrenceScopeDialog) {
+            val updatedEvent = pendingUpdatedEvent
+            Dialog(onDismissRequest = { showRecurrenceScopeDialog = false }) {
+                Card(
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(24.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        Text(
+                            text = "Apply changes to...",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Button(
+                            onClick = {
+                                updatedEvent?.let {
+                                    viewModel.updateCalendarEventOccurrence(
+                                        it.copy(seriesId = null, repeatRule = "NONE"),
+                                        applyToWholeSeries = false
+                                    )
+                                }
+                                showRecurrenceScopeDialog = false
+                                showEditEventDialog = false
+                            },
+                            modifier = Modifier.fillMaxWidth().testTag("btn_scope_just_this")
+                        ) {
+                            Text("Just this event")
+                        }
+                        Button(
+                            onClick = {
+                                updatedEvent?.let {
+                                    viewModel.updateCalendarEventOccurrence(it, applyToWholeSeries = true)
+                                }
+                                showRecurrenceScopeDialog = false
+                                showEditEventDialog = false
+                            },
+                            modifier = Modifier.fillMaxWidth().testTag("btn_scope_this_and_following")
+                        ) {
+                            Text("This and following events")
+                        }
+                        TextButton(
+                            onClick = { showRecurrenceScopeDialog = false },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Cancel")
                         }
                     }
                 }

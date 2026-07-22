@@ -20,5 +20,7 @@ data class CalendarEvent(
     val isCompleted: Boolean = false,
     val isAllDay: Boolean = false,
     val endTime: String? = null,
-    val firestoreId: String? = null
+    val firestoreId: String? = null,
+    val repeatRule: String = "NONE", // "NONE", "WEEKLY", "MONTHLY", "YEARLY"
+    val seriesId: String? = null // shared across all occurrences of one recurring series; null if standalone
 )
