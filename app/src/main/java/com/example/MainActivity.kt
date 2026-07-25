@@ -25,6 +25,7 @@ import com.example.ui.ChatViewModel
 import com.example.ui.FamilyDataSyncViewModel
 import com.example.ui.PollsViewModel
 import com.example.ui.SavingsViewModel
+import com.example.ui.ShoppingListsViewModel
 import com.example.ui.UpdateBanner
 import com.example.ui.UpdateUiState
 import com.example.ui.UpdateViewModel
@@ -37,6 +38,7 @@ class MainActivity : ComponentActivity() {
   private val chatViewModel: ChatViewModel by viewModels()
   private val familyDataSyncViewModel: FamilyDataSyncViewModel by viewModels()
   private val pollsViewModel: PollsViewModel by viewModels()
+  private val shoppingListsViewModel: ShoppingListsViewModel by viewModels()
   private val updateViewModel: UpdateViewModel by viewModels()
 
   override fun onCreate(savedInstanceState: Bundle?) {
@@ -95,7 +97,8 @@ class MainActivity : ComponentActivity() {
               viewModel = viewModel,
               chatViewModel = chatViewModel,
               familyDataSyncViewModel = familyDataSyncViewModel,
-              pollsViewModel = pollsViewModel
+              pollsViewModel = pollsViewModel,
+              shoppingListsViewModel = shoppingListsViewModel
             )
           }
         }

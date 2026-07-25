@@ -85,9 +85,57 @@ val MIGRATION_12_13 = object : Migration(12, 13) {
     }
 }
 
+val MIGRATION_13_14 = object : Migration(13, 14) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS `shopping_lists` (
+                `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                `name` TEXT NOT NULL,
+                `createdByMemberId` INTEGER NOT NULL,
+                `createdAt` INTEGER NOT NULL,
+                `firestoreId` TEXT
+            )
+            """.trimIndent()
+        )
+        db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_shopping_lists_firestoreId ON shopping_lists(firestoreId)")
+
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS `shops` (
+                `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                `listId` INTEGER NOT NULL,
+                `name` TEXT NOT NULL,
+                `createdAt` INTEGER NOT NULL,
+                `firestoreId` TEXT,
+                FOREIGN KEY(`listId`) REFERENCES `shopping_lists`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
+            )
+            """.trimIndent()
+        )
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_shops_listId ON shops(listId)")
+        db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_shops_firestoreId ON shops(firestoreId)")
+
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS `shopping_items` (
+                `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                `shopId` INTEGER NOT NULL,
+                `name` TEXT NOT NULL,
+                `isChecked` INTEGER NOT NULL,
+                `createdAt` INTEGER NOT NULL,
+                `firestoreId` TEXT,
+                FOREIGN KEY(`shopId`) REFERENCES `shops`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
+            )
+            """.trimIndent()
+        )
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_shopping_items_shopId ON shopping_items(shopId)")
+        db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_shopping_items_firestoreId ON shopping_items(firestoreId)")
+    }
+}
+
 @Database(
-    entities = [FamilyMember::class, SavingsGoal::class, Contribution::class, CalendarEvent::class, FamilyTask::class, ChatMessage::class, Poll::class, PollVote::class],
-    version = 13,
+    entities = [FamilyMember::class, SavingsGoal::class, Contribution::class, CalendarEvent::class, FamilyTask::class, ChatMessage::class, Poll::class, PollVote::class, ShoppingList::class, Shop::class, ShoppingItem::class],
+    version = 14,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -97,6 +145,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun taskDao(): TaskDao
     abstract fun chatDao(): ChatDao
     abstract fun pollDao(): PollDao
+    abstract fun shoppingListDao(): ShoppingListDao
 
     companion object {
         @Volatile
@@ -110,7 +159,7 @@ abstract class AppDatabase : RoomDatabase() {
                     "family_savings_db"
                 )
                 .setJournalMode(RoomDatabase.JournalMode.TRUNCATE)
-                .addMigrations(MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13)
+                .addMigrations(MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14)
                 .fallbackToDestructiveMigration()
                 .build()
                 INSTANCE = instance
