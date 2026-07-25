@@ -16,6 +16,11 @@ object UpdateDownloader {
         File(context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), APK_FILE_NAME)
 
     fun enqueueDownload(context: Context, url: String): Long {
+        // A leftover file from a previous update attempt can make DownloadManager treat this
+        // enqueue as already satisfied, silently skipping the fetch and leaving the OLD apk in
+        // place for install (seen as an INSTALL_FAILED_VERSION_DOWNGRADE on the newer download).
+        downloadedApkFile(context).delete()
+
         val downloadManager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
         val request = DownloadManager.Request(Uri.parse(url))
             .setTitle("Family Hub update")
