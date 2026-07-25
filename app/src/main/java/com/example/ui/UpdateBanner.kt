@@ -43,6 +43,9 @@ fun UpdateBanner(
                         is UpdateUiState.Available -> "Version ${state.info.versionName}"
                         is UpdateUiState.Downloading -> "Downloading…"
                         is UpdateUiState.ReadyToInstall -> "Ready to install"
+                        UpdateUiState.Installing -> "Installing…"
+                        UpdateUiState.Installed -> "Installed — reopen the app to finish updating"
+                        is UpdateUiState.InstallFailed -> state.message
                         is UpdateUiState.Error -> state.message
                         UpdateUiState.Idle -> ""
                     }
@@ -55,12 +58,13 @@ fun UpdateBanner(
                     is UpdateUiState.Available -> {
                         TextButton(onClick = { onUpdateClick(state.info) }) { Text("Update") }
                     }
-                    is UpdateUiState.Downloading -> {
+                    is UpdateUiState.Downloading, UpdateUiState.Installing -> {
                         CircularProgressIndicator(modifier = Modifier.size(20.dp))
                     }
                     is UpdateUiState.ReadyToInstall -> {
                         TextButton(onClick = { onInstallClick(state.apkFile) }) { Text("Install") }
                     }
+                    UpdateUiState.Installed, is UpdateUiState.InstallFailed,
                     is UpdateUiState.Error, UpdateUiState.Idle -> {}
                 }
 

@@ -19,6 +19,9 @@ sealed interface UpdateUiState {
     data class Available(val info: UpdateInfo) : UpdateUiState
     data class Downloading(val info: UpdateInfo) : UpdateUiState
     data class ReadyToInstall(val apkFile: File) : UpdateUiState
+    data object Installing : UpdateUiState
+    data object Installed : UpdateUiState
+    data class InstallFailed(val message: String) : UpdateUiState
     data class Error(val message: String) : UpdateUiState
 }
 
@@ -58,5 +61,17 @@ class UpdateViewModel(application: Application) : AndroidViewModel(application) 
     fun dismiss(versionCode: Int) {
         UpdatePreferences.setDismissedVersionCode(getApplication(), versionCode)
         _uiState.value = UpdateUiState.Idle
+    }
+
+    fun onInstallStarted() {
+        _uiState.value = UpdateUiState.Installing
+    }
+
+    fun onInstallSucceeded() {
+        _uiState.value = UpdateUiState.Installed
+    }
+
+    fun onInstallFailed(message: String) {
+        _uiState.value = UpdateUiState.InstallFailed(message)
     }
 }
