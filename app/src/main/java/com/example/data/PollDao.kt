@@ -14,8 +14,14 @@ interface PollDao {
     @Query("SELECT * FROM poll_votes")
     fun getAllVotes(): Flow<List<PollVote>>
 
+    @Query("SELECT * FROM poll_options ORDER BY createdAt ASC")
+    fun getAllOptions(): Flow<List<PollOption>>
+
     @Query("SELECT * FROM polls WHERE firestoreId = :firestoreId LIMIT 1")
     suspend fun getPollByFirestoreId(firestoreId: String): Poll?
+
+    @Query("SELECT * FROM poll_options WHERE firestoreId = :firestoreId LIMIT 1")
+    suspend fun getPollOptionByFirestoreId(firestoreId: String): PollOption?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertPoll(poll: Poll): Long
@@ -23,15 +29,24 @@ interface PollDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertVote(vote: PollVote): Long
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertOption(option: PollOption): Long
+
     @Query("DELETE FROM polls WHERE id = :pollId")
     suspend fun deletePollById(pollId: Int)
 
     @Query("DELETE FROM poll_votes WHERE pollId = :pollId AND memberId = :memberId")
     suspend fun deleteVote(pollId: Int, memberId: Int)
 
+    @Query("DELETE FROM poll_options WHERE id = :optionId")
+    suspend fun deleteOptionById(optionId: Int)
+
     @Query("DELETE FROM polls")
     suspend fun clearPolls()
 
     @Query("DELETE FROM poll_votes")
     suspend fun clearVotes()
+
+    @Query("DELETE FROM poll_options")
+    suspend fun clearOptions()
 }

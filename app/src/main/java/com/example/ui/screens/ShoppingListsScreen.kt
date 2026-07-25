@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
@@ -17,6 +18,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
@@ -48,6 +50,7 @@ fun ShoppingListsScreen(
     var shopPendingDelete by remember { mutableStateOf<Pair<ShoppingList, Shop>?>(null) }
     var addShopForList by remember { mutableStateOf<ShoppingList?>(null) }
     var addItemForShop by remember { mutableStateOf<Pair<ShoppingList, Shop>?>(null) }
+    var itemPendingQuantityEdit by remember { mutableStateOf<Triple<ShoppingList, Shop, ShoppingItem>?>(null) }
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
@@ -167,6 +170,9 @@ fun ShoppingListsScreen(
                         },
                         onDeleteItem = { shop, item ->
                             shoppingListsViewModel.deleteItem(listWithShops.list, shop, item)
+                        },
+                        onEditItemQuantity = { shop, item ->
+                            itemPendingQuantityEdit = Triple(listWithShops.list, shop, item)
                         }
                     )
                 }
@@ -220,16 +226,22 @@ fun ShoppingListsScreen(
     }
 
     addItemForShop?.let { (list, shop) ->
-        SingleTextFieldDialog(
-            title = "Add an Item",
-            label = "Item name",
-            placeholder = "e.g. Milk",
-            confirmLabel = "Add",
-            testTagPrefix = "item",
+        AddItemDialog(
             onDismiss = { addItemForShop = null },
-            onConfirm = { name ->
-                shoppingListsViewModel.addItem(list, shop, name)
+            onConfirm = { name, quantity ->
+                shoppingListsViewModel.addItem(list, shop, name, quantity)
                 addItemForShop = null
+            }
+        )
+    }
+
+    itemPendingQuantityEdit?.let { (list, shop, item) ->
+        EditQuantityDialog(
+            currentQuantity = item.quantity,
+            onDismiss = { itemPendingQuantityEdit = null },
+            onConfirm = { newQuantity ->
+                shoppingListsViewModel.updateItemQuantity(list, shop, item, newQuantity)
+                itemPendingQuantityEdit = null
             }
         )
     }
@@ -271,7 +283,8 @@ fun ShoppingListCard(
     onDeleteShop: (Shop) -> Unit,
     onAddItem: (Shop) -> Unit,
     onToggleItemChecked: (Shop, ShoppingItem) -> Unit,
-    onDeleteItem: (Shop, ShoppingItem) -> Unit
+    onDeleteItem: (Shop, ShoppingItem) -> Unit,
+    onEditItemQuantity: (Shop, ShoppingItem) -> Unit
 ) {
     var expanded by remember { mutableStateOf(true) }
     var showMenu by remember { mutableStateOf(false) }
@@ -352,7 +365,8 @@ fun ShoppingListCard(
                             onDelete = { onDeleteShop(shopWithItems.shop) },
                             onAddItem = { onAddItem(shopWithItems.shop) },
                             onToggleItemChecked = { item -> onToggleItemChecked(shopWithItems.shop, item) },
-                            onDeleteItem = { item -> onDeleteItem(shopWithItems.shop, item) }
+                            onDeleteItem = { item -> onDeleteItem(shopWithItems.shop, item) },
+                            onEditItemQuantity = { item -> onEditItemQuantity(shopWithItems.shop, item) }
                         )
                     }
                     TextButton(
@@ -375,7 +389,8 @@ fun ShopCard(
     onDelete: () -> Unit,
     onAddItem: () -> Unit,
     onToggleItemChecked: (ShoppingItem) -> Unit,
-    onDeleteItem: (ShoppingItem) -> Unit
+    onDeleteItem: (ShoppingItem) -> Unit,
+    onEditItemQuantity: (ShoppingItem) -> Unit
 ) {
     var expanded by remember { mutableStateOf(true) }
     val shop = shopWithItems.shop
@@ -438,7 +453,8 @@ fun ShopCard(
                         ItemRow(
                             item = item,
                             onToggleChecked = { onToggleItemChecked(item) },
-                            onDelete = { onDeleteItem(item) }
+                            onDelete = { onDeleteItem(item) },
+                            onEditQuantity = { onEditItemQuantity(item) }
                         )
                     }
                     TextButton(
@@ -459,7 +475,8 @@ fun ShopCard(
 fun ItemRow(
     item: ShoppingItem,
     onToggleChecked: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    onEditQuantity: () -> Unit
 ) {
     Row(
         modifier = Modifier
@@ -479,6 +496,18 @@ fun ItemRow(
             color = if (item.isChecked) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f) else MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.weight(1f)
         )
+        if (item.quantity > 1) {
+            Text(
+                text = "x${item.quantity}",
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.Bold,
+                color = FeatureColors.shoppingLists,
+                modifier = Modifier
+                    .padding(end = 8.dp)
+                    .clickable { onEditQuantity() }
+                    .testTag("item_quantity_${item.id}")
+            )
+        }
         IconButton(
             onClick = onDelete,
             modifier = Modifier.testTag("item_delete_button_${item.id}")
@@ -559,6 +588,159 @@ fun SingleTextFieldDialog(
                         shape = RoundedCornerShape(100.dp)
                     ) {
                         Text(confirmLabel)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun AddItemDialog(
+    onDismiss: () -> Unit,
+    onConfirm: (name: String, quantity: Int) -> Unit
+) {
+    var name by remember { mutableStateOf("") }
+    var quantityText by remember { mutableStateOf("1") }
+    val parsedQuantity = quantityText.toIntOrNull()
+    val isQuantityError = quantityText.isNotBlank() && (parsedQuantity == null || parsedQuantity < 1)
+    val canConfirm = name.isNotBlank() && parsedQuantity != null && parsedQuantity >= 1
+
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .wrapContentHeight()
+                .testTag("add_item_dialog"),
+            shape = RoundedCornerShape(24.dp),
+            tonalElevation = 6.dp,
+            color = MaterialTheme.colorScheme.surface
+        ) {
+            Column(
+                modifier = Modifier.padding(24.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Text(
+                    text = "Add an Item",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(bottom = 4.dp)
+                )
+
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("Item name") },
+                    placeholder = { Text("e.g. Milk") },
+                    singleLine = true,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("item_input_name")
+                )
+
+                OutlinedTextField(
+                    value = quantityText,
+                    onValueChange = { quantityText = it.filter(Char::isDigit) },
+                    label = { Text("Quantity") },
+                    isError = isQuantityError,
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("item_input_quantity")
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TextButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.testTag("item_dialog_cancel")
+                    ) {
+                        Text("Cancel")
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Button(
+                        onClick = { if (canConfirm) onConfirm(name.trim(), parsedQuantity!!) },
+                        enabled = canConfirm,
+                        modifier = Modifier.testTag("item_dialog_confirm"),
+                        shape = RoundedCornerShape(100.dp)
+                    ) {
+                        Text("Add")
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun EditQuantityDialog(
+    currentQuantity: Int,
+    onDismiss: () -> Unit,
+    onConfirm: (Int) -> Unit
+) {
+    var quantityText by remember { mutableStateOf(currentQuantity.toString()) }
+    val parsedQuantity = quantityText.toIntOrNull()
+    val isQuantityError = quantityText.isNotBlank() && (parsedQuantity == null || parsedQuantity < 1)
+    val canConfirm = parsedQuantity != null && parsedQuantity >= 1
+
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .wrapContentHeight()
+                .testTag("edit_quantity_dialog"),
+            shape = RoundedCornerShape(24.dp),
+            tonalElevation = 6.dp,
+            color = MaterialTheme.colorScheme.surface
+        ) {
+            Column(
+                modifier = Modifier.padding(24.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Text(
+                    text = "Edit Quantity",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(bottom = 4.dp)
+                )
+
+                OutlinedTextField(
+                    value = quantityText,
+                    onValueChange = { quantityText = it.filter(Char::isDigit) },
+                    label = { Text("Quantity") },
+                    isError = isQuantityError,
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("edit_quantity_input")
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TextButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.testTag("edit_quantity_dialog_cancel")
+                    ) {
+                        Text("Cancel")
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Button(
+                        onClick = { if (canConfirm) onConfirm(parsedQuantity!!) },
+                        enabled = canConfirm,
+                        modifier = Modifier.testTag("edit_quantity_dialog_confirm"),
+                        shape = RoundedCornerShape(100.dp)
+                    ) {
+                        Text("Save")
                     }
                 }
             }

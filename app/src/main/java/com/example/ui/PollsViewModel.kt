@@ -5,6 +5,8 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.AppDatabase
 import com.example.data.Poll
+import com.example.data.PollMode
+import com.example.data.PollOption
 import com.example.data.PollRepository
 import com.example.data.PollVote
 import com.example.notifications.NotificationHelper
@@ -31,6 +33,7 @@ class PollsViewModel(application: Application) : AndroidViewModel(application) {
 
     private var pollsListener: ListenerRegistration? = null
     private val voteListeners = mutableMapOf<String, ListenerRegistration>()
+    private val optionListeners = mutableMapOf<String, ListenerRegistration>()
 
     val polls: StateFlow<List<Poll>> = pollRepository.allPolls
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -38,9 +41,15 @@ class PollsViewModel(application: Application) : AndroidViewModel(application) {
     val votes: StateFlow<List<PollVote>> = pollRepository.allVotes
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    val pollOptions: StateFlow<List<PollOption>> = pollRepository.allOptions
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     val openUnvotedPollsCount: StateFlow<Int> = combine(polls, votes, _activeMemberId) { pollList, voteList, memberId ->
         pollList.count { poll ->
-            !poll.isClosed && voteList.none { it.pollId == poll.id && it.memberId == memberId }
+            when (poll.mode) {
+                PollMode.SPIN -> poll.spinResultIndex == null
+                else -> !poll.isClosed && voteList.none { it.pollId == poll.id && it.memberId == memberId }
+            }
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
 
@@ -56,14 +65,19 @@ class PollsViewModel(application: Application) : AndroidViewModel(application) {
         _isActiveAdmin.value = isAdmin
     }
 
-    fun createPoll(question: String, options: List<String>) {
+    fun createPoll(question: String, options: List<String>, mode: String = PollMode.VOTE) {
         val code = _syncGroupCode.value
         val memberId = _activeMemberId.value
         if (code.isBlank() || memberId == -1) return
 
         val cleanQuestion = question.trim()
-        val cleanOptions = options.map { it.trim() }.filter { it.isNotBlank() }
-        if (cleanQuestion.isBlank() || cleanOptions.size < 2 || cleanOptions.size > 6) return
+        if (cleanQuestion.isBlank()) return
+        val cleanOptions = if (mode == PollMode.SPIN) {
+            emptyList()
+        } else {
+            options.map { it.trim() }.filter { it.isNotBlank() }
+        }
+        if (mode != PollMode.SPIN && (cleanOptions.size < 2 || cleanOptions.size > 6)) return
 
         val data = hashMapOf(
             "question" to cleanQuestion,
@@ -71,7 +85,8 @@ class PollsViewModel(application: Application) : AndroidViewModel(application) {
             "createdByMemberId" to memberId,
             "createdByName" to activeMemberName,
             "createdAt" to System.currentTimeMillis(),
-            "isClosed" to false
+            "isClosed" to false,
+            "mode" to mode
         )
 
         firestore.collection("families")
@@ -100,6 +115,78 @@ class PollsViewModel(application: Application) : AndroidViewModel(application) {
             .collection("votes")
             .document(memberId.toString())
             .set(data)
+    }
+
+    fun addOption(poll: Poll, text: String) {
+        val code = _syncGroupCode.value
+        val memberId = _activeMemberId.value
+        val firestoreId = poll.firestoreId ?: return
+        if (code.isBlank() || memberId == -1 || poll.spinResultIndex != null) return
+
+        val cleanText = text.trim()
+        if (cleanText.isBlank()) return
+        val existing = pollOptions.value.filter { it.pollId == poll.id }
+        if (existing.size >= 12) return
+        if (existing.any { it.text.equals(cleanText, ignoreCase = true) }) return
+
+        val data = hashMapOf(
+            "text" to cleanText,
+            "createdByMemberId" to memberId,
+            "createdByName" to activeMemberName,
+            "createdAt" to System.currentTimeMillis()
+        )
+
+        firestore.collection("families")
+            .document(code)
+            .collection("polls")
+            .document(firestoreId)
+            .collection("options")
+            .add(data)
+    }
+
+    fun deleteOption(poll: Poll, option: PollOption) {
+        val code = _syncGroupCode.value
+        val firestoreId = poll.firestoreId ?: return
+        val optionFirestoreId = option.firestoreId ?: return
+        if (code.isBlank() || poll.spinResultIndex != null) return
+        if (!(canModify(poll) || option.createdByMemberId == _activeMemberId.value)) return
+
+        firestore.collection("families")
+            .document(code)
+            .collection("polls")
+            .document(firestoreId)
+            .collection("options")
+            .document(optionFirestoreId)
+            .delete()
+    }
+
+    fun spinWheel(poll: Poll) {
+        if (!canModify(poll)) return
+        val code = _syncGroupCode.value
+        val firestoreId = poll.firestoreId ?: return
+        if (code.isBlank() || poll.spinResultIndex != null) return
+
+        val pollOptionsForPoll = pollOptions.value.filter { it.pollId == poll.id }.sortedBy { it.createdAt }
+        if (pollOptionsForPoll.size < 2) return
+        val winningIndex = pollOptionsForPoll.indices.random()
+
+        val pollDoc = firestore.collection("families")
+            .document(code)
+            .collection("polls")
+            .document(firestoreId)
+
+        firestore.runTransaction { txn ->
+            val snapshot = txn.get(pollDoc)
+            if (snapshot.getLong("spinResultIndex") == null) {
+                txn.update(
+                    pollDoc,
+                    mapOf(
+                        "spinResultIndex" to winningIndex,
+                        "spinStartedAt" to System.currentTimeMillis()
+                    )
+                )
+            }
+        }
     }
 
     fun closePoll(poll: Poll) {
@@ -142,6 +229,8 @@ class PollsViewModel(application: Application) : AndroidViewModel(application) {
         pollsListener?.remove()
         voteListeners.values.forEach { it.remove() }
         voteListeners.clear()
+        optionListeners.values.forEach { it.remove() }
+        optionListeners.clear()
         if (code.isBlank()) return
 
         val familyDoc = firestore.collection("families").document(code)
@@ -169,11 +258,15 @@ class PollsViewModel(application: Application) : AndroidViewModel(application) {
                                     createdByMemberId = createdByMemberId,
                                     createdAt = (data["createdAt"] as? Long) ?: 0L,
                                     isClosed = data["isClosed"] as? Boolean ?: false,
+                                    mode = data["mode"] as? String ?: PollMode.VOTE,
+                                    spinResultIndex = (data["spinResultIndex"] as? Long)?.toInt(),
+                                    spinStartedAt = data["spinStartedAt"] as? Long,
                                     firestoreId = doc.id
                                 )
                                 val localId = pollRepository.insertPoll(poll)
                                 val resolvedPollId = if (existing != null) existing.id else localId.toInt()
                                 registerVotesListener(familyDoc, doc.id, resolvedPollId)
+                                registerOptionsListener(familyDoc, doc.id, resolvedPollId)
 
                                 if (change.type == DocumentChange.Type.ADDED && shouldNotify &&
                                     createdByMemberId != _activeMemberId.value
@@ -187,6 +280,45 @@ class PollsViewModel(application: Application) : AndroidViewModel(application) {
                                     pollRepository.deletePollById(it.id)
                                 }
                                 voteListeners.remove(doc.id)?.remove()
+                                optionListeners.remove(doc.id)?.remove()
+                            }
+                        }
+                    }
+                }
+            }
+    }
+
+    private fun registerOptionsListener(familyDoc: DocumentReference, pollFirestoreId: String, localPollId: Int) {
+        if (optionListeners.containsKey(pollFirestoreId)) return
+
+        optionListeners[pollFirestoreId] = familyDoc.collection("polls")
+            .document(pollFirestoreId)
+            .collection("options")
+            .orderBy("createdAt", Query.Direction.ASCENDING)
+            .addSnapshotListener { snapshot, _ ->
+                if (snapshot == null) return@addSnapshotListener
+
+                viewModelScope.launch {
+                    for (change in snapshot.documentChanges) {
+                        val doc = change.document
+                        when (change.type) {
+                            DocumentChange.Type.ADDED, DocumentChange.Type.MODIFIED -> {
+                                val data = doc.data
+                                val existing = pollRepository.getPollOptionByFirestoreId(doc.id)
+                                val option = PollOption(
+                                    id = existing?.id ?: 0,
+                                    pollId = localPollId,
+                                    text = data["text"] as? String ?: "",
+                                    createdByMemberId = (data["createdByMemberId"] as? Long)?.toInt() ?: -1,
+                                    createdAt = (data["createdAt"] as? Long) ?: 0L,
+                                    firestoreId = doc.id
+                                )
+                                pollRepository.insertOption(option)
+                            }
+                            DocumentChange.Type.REMOVED -> {
+                                pollRepository.getPollOptionByFirestoreId(doc.id)?.let {
+                                    pollRepository.deleteOptionById(it.id)
+                                }
                             }
                         }
                     }
@@ -235,5 +367,7 @@ class PollsViewModel(application: Application) : AndroidViewModel(application) {
         pollsListener?.remove()
         voteListeners.values.forEach { it.remove() }
         voteListeners.clear()
+        optionListeners.values.forEach { it.remove() }
+        optionListeners.clear()
     }
 }

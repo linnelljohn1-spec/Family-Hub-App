@@ -133,9 +133,35 @@ val MIGRATION_13_14 = object : Migration(13, 14) {
     }
 }
 
+val MIGRATION_14_15 = object : Migration(14, 15) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE shopping_items ADD COLUMN quantity INTEGER NOT NULL DEFAULT 1")
+
+        db.execSQL("ALTER TABLE polls ADD COLUMN mode TEXT NOT NULL DEFAULT 'VOTE'")
+        db.execSQL("ALTER TABLE polls ADD COLUMN spinResultIndex INTEGER DEFAULT NULL")
+        db.execSQL("ALTER TABLE polls ADD COLUMN spinStartedAt INTEGER DEFAULT NULL")
+
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS `poll_options` (
+                `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                `pollId` INTEGER NOT NULL,
+                `text` TEXT NOT NULL,
+                `createdByMemberId` INTEGER NOT NULL,
+                `createdAt` INTEGER NOT NULL,
+                `firestoreId` TEXT,
+                FOREIGN KEY(`pollId`) REFERENCES `polls`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
+            )
+            """.trimIndent()
+        )
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_poll_options_pollId ON poll_options(pollId)")
+        db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_poll_options_firestoreId ON poll_options(firestoreId)")
+    }
+}
+
 @Database(
-    entities = [FamilyMember::class, SavingsGoal::class, Contribution::class, CalendarEvent::class, FamilyTask::class, ChatMessage::class, Poll::class, PollVote::class, ShoppingList::class, Shop::class, ShoppingItem::class],
-    version = 14,
+    entities = [FamilyMember::class, SavingsGoal::class, Contribution::class, CalendarEvent::class, FamilyTask::class, ChatMessage::class, Poll::class, PollVote::class, PollOption::class, ShoppingList::class, Shop::class, ShoppingItem::class],
+    version = 15,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -159,7 +185,7 @@ abstract class AppDatabase : RoomDatabase() {
                     "family_savings_db"
                 )
                 .setJournalMode(RoomDatabase.JournalMode.TRUNCATE)
-                .addMigrations(MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14)
+                .addMigrations(MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15)
                 .fallbackToDestructiveMigration()
                 .build()
                 INSTANCE = instance
