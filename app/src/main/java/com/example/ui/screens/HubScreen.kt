@@ -53,6 +53,7 @@ fun HubScreen(
     onNavigateToTasks: () -> Unit,
     onNavigateToChat: () -> Unit,
     onNavigateToPolls: () -> Unit,
+    onNavigateToShoppingLists: () -> Unit,
     unreadMessagesCount: Int,
     openPollsCount: Int,
     onSwitchProfileClick: () -> Unit
@@ -230,6 +231,15 @@ fun HubScreen(
                         label = "Polls",
                         badgeCount = openPollsCount,
                         onClick = onNavigateToPolls
+                    ),
+                    HubModule(
+                        testTag = "launcher_shopping_lists",
+                        icon = Icons.Default.ShoppingCart,
+                        accent = FeatureColors.shoppingLists,
+                        container = FeatureColors.shoppingListsContainer,
+                        label = "Shopping",
+                        badgeCount = 0,
+                        onClick = onNavigateToShoppingLists
                     )
                 )
             }

@@ -59,6 +59,8 @@ val SavingsAccent = SuccessLight
 val SavingsAccentContainer = SuccessContainerLight
 val PollsAccent = Amber40
 val PollsAccentContainer = AmberContainer90
+val ShoppingAccent = Color(0xFF3B6EA5)
+val ShoppingAccentContainer = Color(0xFFD9E6F5)
 
 // Calendar event-category colors (harmonized with the warm palette)
 val EventFamilyOuting = Sage40
