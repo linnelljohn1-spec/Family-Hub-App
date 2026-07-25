@@ -23,5 +23,6 @@ data class Poll(
     val mode: String = PollMode.VOTE,
     val spinResultIndex: Int? = null,
     val spinStartedAt: Long? = null,
+    val spinWinnerText: String? = null,
     val firestoreId: String? = null
 )
