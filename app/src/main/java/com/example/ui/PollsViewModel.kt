@@ -182,6 +182,7 @@ class PollsViewModel(application: Application) : AndroidViewModel(application) {
                     pollDoc,
                     mapOf(
                         "spinResultIndex" to winningIndex,
+                        "spinWinnerText" to pollOptionsForPoll[winningIndex].text,
                         "spinStartedAt" to System.currentTimeMillis()
                     )
                 )
@@ -261,6 +262,7 @@ class PollsViewModel(application: Application) : AndroidViewModel(application) {
                                     mode = data["mode"] as? String ?: PollMode.VOTE,
                                     spinResultIndex = (data["spinResultIndex"] as? Long)?.toInt(),
                                     spinStartedAt = data["spinStartedAt"] as? Long,
+                                    spinWinnerText = data["spinWinnerText"] as? String,
                                     firestoreId = doc.id
                                 )
                                 val localId = pollRepository.insertPoll(poll)

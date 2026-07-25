@@ -483,7 +483,7 @@ fun SpinPollSection(
             AssistChip(
                 onClick = {},
                 enabled = false,
-                label = { Text("Winner: ${options.getOrNull(poll.spinResultIndex ?: -1)?.text ?: ""}") },
+                label = { Text("Winner: ${poll.spinWinnerText ?: options.getOrNull(poll.spinResultIndex ?: -1)?.text ?: "Unknown"}") },
                 colors = AssistChipDefaults.assistChipColors(
                     disabledContainerColor = FeatureColors.pollsContainer,
                     disabledLabelColor = FeatureColors.polls
@@ -516,7 +516,7 @@ fun SpinWheel(
     LaunchedEffect(spinResultIndex, options.size) {
         val index = spinResultIndex ?: return@LaunchedEffect
         val landingAngle = 360f - (index * sweepPerWedge + sweepPerWedge / 2f)
-        if (!hasRenderedResultOnce) {
+        if (hasRenderedResultOnce) {
             rotation.snapTo(landingAngle)
         } else {
             rotation.animateTo(
