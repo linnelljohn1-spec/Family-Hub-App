@@ -190,16 +190,18 @@ class ShoppingListsViewModel(application: Application) : AndroidViewModel(applic
         }
     }
 
-    fun addItem(list: ShoppingList, shop: Shop, name: String) {
+    fun addItem(list: ShoppingList, shop: Shop, name: String, quantity: Int = 1) {
         val code = _syncGroupCode.value
         val listFirestoreId = list.firestoreId ?: return
         val shopFirestoreId = shop.firestoreId ?: return
         val cleanName = name.trim()
+        val cleanQuantity = quantity.coerceAtLeast(1)
         if (code.isBlank() || cleanName.isBlank()) return
 
         val data = hashMapOf(
             "name" to cleanName,
             "isChecked" to false,
+            "quantity" to cleanQuantity,
             "createdAt" to System.currentTimeMillis()
         )
 
@@ -211,6 +213,25 @@ class ShoppingListsViewModel(application: Application) : AndroidViewModel(applic
             .document(shopFirestoreId)
             .collection("items")
             .add(data)
+    }
+
+    fun updateItemQuantity(list: ShoppingList, shop: Shop, item: ShoppingItem, newQuantity: Int) {
+        val code = _syncGroupCode.value
+        val listFirestoreId = list.firestoreId ?: return
+        val shopFirestoreId = shop.firestoreId ?: return
+        val itemFirestoreId = item.firestoreId ?: return
+        val cleanQuantity = newQuantity.coerceAtLeast(1)
+        if (code.isBlank()) return
+
+        firestore.collection("families")
+            .document(code)
+            .collection("shoppingLists")
+            .document(listFirestoreId)
+            .collection("shops")
+            .document(shopFirestoreId)
+            .collection("items")
+            .document(itemFirestoreId)
+            .update("quantity", cleanQuantity)
     }
 
     fun toggleItemChecked(list: ShoppingList, shop: Shop, item: ShoppingItem) {
@@ -362,6 +383,7 @@ class ShoppingListsViewModel(application: Application) : AndroidViewModel(applic
                                     shopId = localShopId,
                                     name = data["name"] as? String ?: "",
                                     isChecked = data["isChecked"] as? Boolean ?: false,
+                                    quantity = (data["quantity"] as? Long)?.toInt() ?: 1,
                                     createdAt = (data["createdAt"] as? Long) ?: 0L,
                                     firestoreId = doc.id
                                 )

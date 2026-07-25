@@ -6,26 +6,25 @@ import androidx.room.Index
 import androidx.room.PrimaryKey
 
 @Entity(
-    tableName = "shopping_items",
+    tableName = "poll_options",
     foreignKeys = [
         ForeignKey(
-            entity = Shop::class,
+            entity = Poll::class,
             parentColumns = ["id"],
-            childColumns = ["shopId"],
+            childColumns = ["pollId"],
             onDelete = ForeignKey.CASCADE
         )
     ],
     indices = [
-        Index(value = ["shopId"]),
+        Index(value = ["pollId"]),
         Index(value = ["firestoreId"], unique = true)
     ]
 )
-data class ShoppingItem(
+data class PollOption(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
-    val shopId: Int,
-    val name: String,
-    val isChecked: Boolean = false,
-    val quantity: Int = 1,
+    val pollId: Int,
+    val text: String,
+    val createdByMemberId: Int,
     val createdAt: Long = System.currentTimeMillis(),
     val firestoreId: String? = null
 )
