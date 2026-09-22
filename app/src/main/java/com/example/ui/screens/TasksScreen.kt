@@ -9,6 +9,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -26,6 +27,8 @@ import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.*
 import com.example.ui.*
+import com.example.ui.theme.AppTheme
+import com.example.ui.theme.FeatureColors
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -44,6 +47,7 @@ fun TasksScreen(
 
     var selectedAssigneeFilter by remember { mutableStateOf<Int>(-2) } // -2 for "All", -1 for "Anyone/Unassigned", or specific member ID
     var showAddTaskDialog by remember { mutableStateOf(false) }
+    var statsSectionExpanded by remember { mutableStateOf(false) }
 
     // Sort and filter active tasks: display only uncompleted tasks
     val activeTasks = remember(tasks, selectedAssigneeFilter) {
@@ -51,6 +55,17 @@ fun TasksScreen(
             .filter { selectedAssigneeFilter == -2 || it.assignedMemberId == selectedAssigneeFilter }
             .sortedBy { it.createdAt }
     }
+
+    // Tasks marked done by a member but not yet approved/rejected by an admin.
+    val awaitingApprovalTasks = remember(tasks, selectedAssigneeFilter) {
+        tasks.filter { it.isCompleted && !it.isApproved }
+            .filter { selectedAssigneeFilter == -2 || it.assignedMemberId == selectedAssigneeFilter }
+            .sortedBy { it.createdAt }
+    }
+
+    // Per-month, per-member assigned/completed breakdown (uses the full task list, not activeTasks,
+    // since completed tasks are required for the completion percentage calculation)
+    val monthlyTaskReports = remember(tasks, members) { computeMonthlyTaskReports(tasks, members) }
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
@@ -177,61 +192,111 @@ fun TasksScreen(
                 }
             }
 
-            // Task List Area
-            if (activeTasks.isEmpty()) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f)
-                        .padding(32.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(88.dp)
-                                .clip(RoundedCornerShape(24.dp))
-                                .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)),
-                            contentAlignment = Alignment.Center
+            // Task List Area (single scroll container: stats section, then empty-state or task list)
+            LazyColumn(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                contentPadding = PaddingValues(top = 16.dp, bottom = 80.dp)
+            ) {
+                item(key = "completion_stats_section") {
+                    CompletionStatsExpandableSection(
+                        reports = monthlyTaskReports,
+                        isExpanded = statsSectionExpanded,
+                        onToggleExpanded = { statsSectionExpanded = !statsSectionExpanded }
+                    )
+                }
+
+                if (awaitingApprovalTasks.isNotEmpty()) {
+                    item(key = "awaiting_approval_header") {
+                        AwaitingApprovalHeader(count = awaitingApprovalTasks.size)
+                    }
+                    items(
+                        items = awaitingApprovalTasks,
+                        key = { it.id }
+                    ) { task ->
+                        var isItemVisible by remember { mutableStateOf(true) }
+
+                        LaunchedEffect(task.isCompleted, task.isApproved) {
+                            if (task.isApproved || !task.isCompleted) {
+                                // Left the "awaiting approval" cohort: approved -> Done, rejected -> back to Active.
+                                isItemVisible = false
+                            }
+                        }
+
+                        AnimatedVisibility(
+                            visible = isItemVisible,
+                            enter = fadeIn() + expandVertically(),
+                            exit = fadeOut() + shrinkVertically()
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.DoneAll,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(48.dp)
+                            TaskCard(
+                                task = task,
+                                members = members,
+                                isAwaitingApproval = true,
+                                isActiveAdmin = isActiveAdmin,
+                                onApprove = {
+                                    isItemVisible = false
+                                    viewModel.approveTask(task)
+                                },
+                                onReject = {
+                                    isItemVisible = false
+                                    viewModel.rejectTaskApproval(task)
+                                }
                             )
                         }
-                        Text(
-                            text = "All Chores Done! 🎉",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onBackground
-                        )
-                        Text(
-                            text = if (selectedAssigneeFilter == -2) {
-                                "There are no pending chores for the family. Enjoy the free time!"
-                            } else {
-                                "No chores found matching this category. Feel free to add some!"
-                            },
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.padding(horizontal = 16.dp)
-                        )
                     }
                 }
-            } else {
-                LazyColumn(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                    contentPadding = PaddingValues(top = 16.dp, bottom = 80.dp)
-                ) {
+
+                if (activeTasks.isEmpty()) {
+                    item(key = "empty_state") {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .fillParentMaxHeight(0.7f)
+                                .padding(32.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(16.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(88.dp)
+                                        .clip(RoundedCornerShape(24.dp))
+                                        .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.DoneAll,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(48.dp)
+                                    )
+                                }
+                                Text(
+                                    text = "All Chores Done! 🎉",
+                                    style = MaterialTheme.typography.titleLarge,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onBackground
+                                )
+                                Text(
+                                    text = if (selectedAssigneeFilter == -2) {
+                                        "There are no pending chores for the family. Enjoy the free time!"
+                                    } else {
+                                        "No chores found matching this category. Feel free to add some!"
+                                    },
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier.padding(horizontal = 16.dp)
+                                )
+                            }
+                        }
+                    }
+                } else {
                     items(
                         items = activeTasks,
                         key = { it.id }
@@ -285,8 +350,12 @@ fun TasksScreen(
 fun TaskCard(
     task: FamilyTask,
     members: List<FamilyMember>,
-    onMarkDone: () -> Unit,
-    onDelete: () -> Unit
+    isAwaitingApproval: Boolean = false,
+    isActiveAdmin: Boolean = false,
+    onMarkDone: (() -> Unit)? = null,
+    onDelete: (() -> Unit)? = null,
+    onApprove: (() -> Unit)? = null,
+    onReject: (() -> Unit)? = null
 ) {
     val assignedMember = members.find { it.id == task.assignedMemberId }
     val unassignedColor = MaterialTheme.colorScheme.outline
@@ -310,20 +379,31 @@ fun TaskCard(
             verticalAlignment = Alignment.Top,
             horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Circular Done Checkbox button
-            IconButton(
-                onClick = onMarkDone,
-                modifier = Modifier
-                    .size(24.dp)
-                    .align(Alignment.CenterVertically)
-                    .testTag("complete_task_btn_${task.id}")
-            ) {
+            // Circular Done Checkbox button (or a static "awaiting approval" indicator)
+            if (isAwaitingApproval) {
                 Icon(
-                    imageVector = Icons.Default.RadioButtonUnchecked,
-                    contentDescription = "Mark Task Done",
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(24.dp)
+                    imageVector = Icons.Default.HourglassTop,
+                    contentDescription = "Awaiting approval",
+                    tint = MaterialTheme.colorScheme.tertiary,
+                    modifier = Modifier
+                        .size(24.dp)
+                        .align(Alignment.CenterVertically)
                 )
+            } else {
+                IconButton(
+                    onClick = { onMarkDone?.invoke() },
+                    modifier = Modifier
+                        .size(24.dp)
+                        .align(Alignment.CenterVertically)
+                        .testTag("complete_task_btn_${task.id}")
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.RadioButtonUnchecked,
+                        contentDescription = "Mark Task Done",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
             }
 
             Column(
@@ -403,22 +483,260 @@ fun TaskCard(
                 }
             }
 
-            // Trash delete button
-            IconButton(
-                onClick = onDelete,
-                modifier = Modifier
-                    .size(24.dp)
-                    .align(Alignment.CenterVertically)
-                    .testTag("delete_task_btn_${task.id}")
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Delete,
-                    contentDescription = "Delete Task",
-                    tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f),
-                    modifier = Modifier.size(20.dp)
-                )
+            if (isAwaitingApproval) {
+                if (isActiveAdmin) {
+                    Row(
+                        modifier = Modifier.align(Alignment.CenterVertically),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        IconButton(
+                            onClick = { onApprove?.invoke() },
+                            modifier = Modifier
+                                .size(28.dp)
+                                .testTag("approve_task_btn_${task.id}")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.CheckCircle,
+                                contentDescription = "Approve Task",
+                                tint = AppTheme.extendedColors.success,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                        IconButton(
+                            onClick = { onReject?.invoke() },
+                            modifier = Modifier
+                                .size(28.dp)
+                                .testTag("reject_task_btn_${task.id}")
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.Undo,
+                                contentDescription = "Reject Task",
+                                tint = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+                } else {
+                    AssistChip(
+                        onClick = {},
+                        enabled = false,
+                        label = { Text("Awaiting approval") },
+                        colors = AssistChipDefaults.assistChipColors(
+                            disabledContainerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                            disabledLabelColor = MaterialTheme.colorScheme.onTertiaryContainer
+                        ),
+                        modifier = Modifier
+                            .align(Alignment.CenterVertically)
+                            .testTag("awaiting_approval_chip_${task.id}")
+                    )
+                }
+            } else {
+                // Trash delete button
+                IconButton(
+                    onClick = { onDelete?.invoke() },
+                    modifier = Modifier
+                        .size(24.dp)
+                        .align(Alignment.CenterVertically)
+                        .testTag("delete_task_btn_${task.id}")
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Delete,
+                        contentDescription = "Delete Task",
+                        tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f),
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
             }
         }
+    }
+}
+
+@Composable
+private fun AwaitingApprovalHeader(count: Int) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("awaiting_approval_header"),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Icon(
+            imageVector = Icons.Default.HourglassTop,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.tertiary
+        )
+        Text(
+            text = "Awaiting Approval ($count)",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onBackground
+        )
+    }
+}
+
+@Composable
+private fun CompletionStatsExpandableSection(
+    reports: List<MonthlyTaskReport>,
+    isExpanded: Boolean,
+    onToggleExpanded: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("task_completion_stats_section"),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = FeatureColors.tasksContainer.copy(alpha = 0.35f)),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+    ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onToggleExpanded() }
+                    .padding(16.dp)
+                    .testTag("task_completion_stats_toggle"),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Assessment,
+                        contentDescription = null,
+                        tint = FeatureColors.tasks
+                    )
+                    Text(
+                        text = "Completion Stats",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                Icon(
+                    imageVector = if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                    contentDescription = if (isExpanded) "Collapse" else "Expand"
+                )
+            }
+            AnimatedVisibility(visible = isExpanded) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 16.dp, end = 16.dp, bottom = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    if (reports.isEmpty()) {
+                        Text(
+                            text = "No assigned chores yet — stats appear once tasks are assigned to a family member.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    } else {
+                        reports.forEach { report ->
+                            MonthlyTaskStatsCard(report)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MonthlyTaskStatsCard(report: MonthlyTaskReport) {
+    val slug = remember(report.monthYearString) {
+        report.monthYearString.lowercase(Locale.getDefault()).replace(" ", "_")
+    }
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("task_stats_month_$slug"),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+    ) {
+        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = report.monthYearString,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = if (report.totalAwaitingApprovalCount > 0) {
+                        "${report.totalCompletedCount}/${report.totalAssignedCount} done · ${report.totalAwaitingApprovalCount} awaiting"
+                    } else {
+                        "${report.totalCompletedCount}/${report.totalAssignedCount} done"
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            report.memberSummaries.forEach { summary ->
+                MemberTaskCompletionRow(summary)
+            }
+        }
+    }
+}
+
+@Composable
+private fun MemberTaskCompletionRow(summary: MemberTaskCompletionSummary) {
+    val avatarColor = remember(summary.member.avatarColorHex) {
+        Color(android.graphics.Color.parseColor(summary.member.avatarColorHex))
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(20.dp)
+                        .clip(CircleShape)
+                        .background(avatarColor),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = summary.member.name.take(1).uppercase(),
+                        color = Color.White,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                Text(
+                    text = summary.member.name,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+            Text(
+                text = if (summary.awaitingApprovalCount > 0) {
+                    "${summary.completedCount}/${summary.assignedCount} (${(summary.completionPercent * 100).toInt()}%) · ${summary.awaitingApprovalCount} awaiting"
+                } else {
+                    "${summary.completedCount}/${summary.assignedCount} (${(summary.completionPercent * 100).toInt()}%)"
+                },
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        LinearProgressIndicator(
+            progress = { summary.completionPercent },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(6.dp)
+                .clip(RoundedCornerShape(3.dp)),
+            color = FeatureColors.tasks,
+            trackColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
+        )
     }
 }
 

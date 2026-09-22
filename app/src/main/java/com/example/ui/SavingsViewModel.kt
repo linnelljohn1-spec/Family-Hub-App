@@ -885,10 +885,30 @@ class SavingsViewModel(application: Application) : AndroidViewModel(application)
 
     fun completeTask(task: FamilyTask) {
         viewModelScope.launch {
-            val updated = task.copy(isCompleted = true)
+            // Marking a task done moves it to "awaiting approval", not fully complete -
+            // isApproved is explicitly reset in case this task was previously rejected.
+            val updated = task.copy(isCompleted = true, isApproved = false)
             taskRepository.updateTask(updated)
             pushTask(updated)
             cancelReminderForTask(updated)
+        }
+    }
+
+    fun approveTask(task: FamilyTask) {
+        viewModelScope.launch {
+            val updated = task.copy(isApproved = true)
+            taskRepository.updateTask(updated)
+            pushTask(updated)
+        }
+    }
+
+    fun rejectTaskApproval(task: FamilyTask) {
+        viewModelScope.launch {
+            // Send the task back to the active to-do list.
+            val updated = task.copy(isCompleted = false, isApproved = false)
+            taskRepository.updateTask(updated)
+            pushTask(updated)
+            scheduleReminderForTask(updated)
         }
     }
 

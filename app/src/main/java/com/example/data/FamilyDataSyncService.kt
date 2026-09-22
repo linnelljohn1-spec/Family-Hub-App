@@ -133,6 +133,7 @@ object FamilyDataSyncService {
             "assignedMemberFirestoreId" to assignedMemberFirestoreId,
             "dueDate" to task.dueDate,
             "isCompleted" to task.isCompleted,
+            "isApproved" to task.isApproved,
             "createdAt" to task.createdAt,
             "updatedAt" to System.currentTimeMillis()
         )
