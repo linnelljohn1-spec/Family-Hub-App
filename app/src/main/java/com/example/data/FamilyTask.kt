@@ -15,6 +15,7 @@ data class FamilyTask(
     val assignedMemberId: Int = -1, // -1 for anyone
     val dueDate: String = "", // "yyyy-MM-dd"
     val isCompleted: Boolean = false,
+    val isApproved: Boolean = false,
     val createdAt: Long = System.currentTimeMillis(),
     val firestoreId: String? = null
 )

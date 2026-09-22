@@ -323,6 +323,7 @@ class FamilyDataSyncViewModel(application: Application) : AndroidViewModel(appli
             assignedMemberId = assignedMemberId,
             dueDate = data["dueDate"] as? String ?: "",
             isCompleted = data["isCompleted"] as? Boolean ?: false,
+            isApproved = data["isApproved"] as? Boolean ?: false,
             createdAt = data["createdAt"] as? Long ?: System.currentTimeMillis(),
             firestoreId = doc.id
         )

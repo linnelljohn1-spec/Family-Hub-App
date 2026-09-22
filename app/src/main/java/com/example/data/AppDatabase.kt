@@ -165,9 +165,18 @@ val MIGRATION_15_16 = object : Migration(15, 16) {
     }
 }
 
+val MIGRATION_16_17 = object : Migration(16, 17) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE family_tasks ADD COLUMN isApproved INTEGER NOT NULL DEFAULT 0")
+        // Grandfather in tasks that were already completed before this migration, so existing
+        // users don't see a surprise approval backlog or a drop in historical completion stats.
+        db.execSQL("UPDATE family_tasks SET isApproved = 1 WHERE isCompleted = 1")
+    }
+}
+
 @Database(
     entities = [FamilyMember::class, SavingsGoal::class, Contribution::class, CalendarEvent::class, FamilyTask::class, ChatMessage::class, Poll::class, PollVote::class, PollOption::class, ShoppingList::class, Shop::class, ShoppingItem::class],
-    version = 16,
+    version = 17,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -191,7 +200,7 @@ abstract class AppDatabase : RoomDatabase() {
                     "family_savings_db"
                 )
                 .setJournalMode(RoomDatabase.JournalMode.TRUNCATE)
-                .addMigrations(MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16)
+                .addMigrations(MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17)
                 .fallbackToDestructiveMigration()
                 .build()
                 INSTANCE = instance
