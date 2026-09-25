@@ -39,6 +39,7 @@ import com.example.ui.UpdateViewModel
 import com.example.ui.screens.FamilySavingsApp
 import com.example.ui.theme.MyApplicationTheme
 import com.example.R
+import com.google.firebase.messaging.FirebaseMessaging
 
 class MainActivity : ComponentActivity() {
   private val viewModel: SavingsViewModel by viewModels()
@@ -53,6 +54,7 @@ class MainActivity : ComponentActivity() {
     enableEdgeToEdge()
 
     NotificationHelper.createChannels(this)
+    FirebaseMessaging.getInstance().subscribeToTopic(NotificationHelper.TOPIC_APP_UPDATES)
 
     setContent {
       MyApplicationTheme {

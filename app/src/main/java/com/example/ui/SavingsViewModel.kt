@@ -939,4 +939,15 @@ class SavingsViewModel(application: Application) : AndroidViewModel(application)
             cancelReminderForTask(task)
         }
     }
+
+    /** Admin cleanup: deletes approved, completed tasks created before the stats window. */
+    fun deleteOldCompletedTasks() {
+        viewModelScope.launch {
+            completedTasksOlderThanStatsWindow(tasks.value).forEach { task ->
+                taskRepository.deleteTask(task)
+                pushDeleteTask(task)
+                cancelReminderForTask(task)
+            }
+        }
+    }
 }

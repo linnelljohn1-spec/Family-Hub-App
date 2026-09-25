@@ -3,6 +3,7 @@ package com.example.ui
 import com.example.data.FamilyMember
 import com.example.data.FamilyTask
 import java.text.SimpleDateFormat
+import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
@@ -28,9 +29,38 @@ data class MonthlyTaskReport(
     val memberSummaries: List<MemberTaskCompletionSummary>
 )
 
+/** How many calendar months of stats to show: the current month plus the previous (N - 1). */
+const val STATS_MONTHS_SHOWN = 6
+
+/**
+ * Start of the stats window: midnight on the 1st of the month (STATS_MONTHS_SHOWN - 1) months
+ * before [nowMillis]'s month. Tasks created before this are neither shown in the stats nor kept
+ * by the admin "delete old completed tasks" cleanup.
+ */
+fun statsWindowStartMillis(nowMillis: Long = System.currentTimeMillis()): Long =
+    Calendar.getInstance().apply {
+        timeInMillis = nowMillis
+        set(Calendar.DAY_OF_MONTH, 1)
+        set(Calendar.HOUR_OF_DAY, 0)
+        set(Calendar.MINUTE, 0)
+        set(Calendar.SECOND, 0)
+        set(Calendar.MILLISECOND, 0)
+        add(Calendar.MONTH, -(STATS_MONTHS_SHOWN - 1))
+    }.timeInMillis
+
+/** Approved, completed tasks created before the stats window - what the admin cleanup deletes. */
+fun completedTasksOlderThanStatsWindow(
+    tasks: List<FamilyTask>,
+    nowMillis: Long = System.currentTimeMillis()
+): List<FamilyTask> {
+    val windowStart = statsWindowStartMillis(nowMillis)
+    return tasks.filter { it.isCompleted && it.isApproved && it.createdAt < windowStart }
+}
+
 /**
  * Groups [tasks] by the calendar month they were created in, then by assignee, producing a
- * completion percentage per member per month.
+ * completion percentage per member per month. Only the last [STATS_MONTHS_SHOWN] calendar months
+ * are included (see [statsWindowStartMillis]).
  *
  * Metric definition: a task counts toward month M for a member if it was assigned to that member
  * and created in month M. Its completion status is read as of now, regardless of when it was
@@ -53,7 +83,10 @@ fun computeMonthlyTaskReports(
     val sdf = SimpleDateFormat("MMMM yyyy", Locale.getDefault())
 
     // Exclude "Anyone" (-1) and any task pointing at a deleted/unknown member.
-    val assignedTasks = tasks.filter { it.assignedMemberId != -1 && memberMap.containsKey(it.assignedMemberId) }
+    val windowStart = statsWindowStartMillis()
+    val assignedTasks = tasks.filter {
+        it.assignedMemberId != -1 && memberMap.containsKey(it.assignedMemberId) && it.createdAt >= windowStart
+    }
     if (assignedTasks.isEmpty()) return emptyList()
 
     val groupedByMonth = assignedTasks.groupBy { sdf.format(Date(it.createdAt)) }

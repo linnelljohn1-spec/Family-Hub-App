@@ -1,5 +1,6 @@
 package com.example.notifications
 
+import com.example.BuildConfig
 import com.example.data.PushTokenService
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
@@ -36,6 +37,13 @@ class FamilyMessagingService : FirebaseMessagingService() {
             "goal" -> NotificationHelper.showPushNotification(this, NotificationHelper.CHANNEL_GOALS_ID, title, body, data["id"])
             "task" -> NotificationHelper.showPushNotification(this, NotificationHelper.CHANNEL_NEW_TASKS_ID, title, body, data["id"])
             "wallet" -> NotificationHelper.showPushNotification(this, NotificationHelper.CHANNEL_WALLET_ID, title, body, data["id"])
+            "update" -> {
+                // Topic pushes reach every install, including ones already on this version.
+                val versionCode = data["versionCode"]?.toIntOrNull() ?: return
+                if (versionCode > BuildConfig.VERSION_CODE) {
+                    NotificationHelper.showPushNotification(this, NotificationHelper.CHANNEL_APP_UPDATES_ID, title, body, "update_$versionCode")
+                }
+            }
         }
     }
 }

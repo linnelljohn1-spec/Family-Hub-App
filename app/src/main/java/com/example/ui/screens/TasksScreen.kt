@@ -66,6 +66,8 @@ fun TasksScreen(
     // Per-month, per-member assigned/completed breakdown (uses the full task list, not activeTasks,
     // since completed tasks are required for the completion percentage calculation)
     val monthlyTaskReports = remember(tasks, members) { computeMonthlyTaskReports(tasks, members) }
+    val oldCompletedTaskCount = remember(tasks) { completedTasksOlderThanStatsWindow(tasks).size }
+    var showDeleteOldTasksDialog by remember { mutableStateOf(false) }
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
@@ -205,7 +207,10 @@ fun TasksScreen(
                     CompletionStatsExpandableSection(
                         reports = monthlyTaskReports,
                         isExpanded = statsSectionExpanded,
-                        onToggleExpanded = { statsSectionExpanded = !statsSectionExpanded }
+                        onToggleExpanded = { statsSectionExpanded = !statsSectionExpanded },
+                        isActiveAdmin = isActiveAdmin,
+                        oldCompletedTaskCount = oldCompletedTaskCount,
+                        onDeleteOldCompletedTasks = { showDeleteOldTasksDialog = true }
                     )
                 }
 
@@ -332,6 +337,35 @@ fun TasksScreen(
                 }
             }
         }
+    }
+
+    if (showDeleteOldTasksDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteOldTasksDialog = false },
+            title = { Text("Delete old completed tasks?") },
+            text = {
+                Text(
+                    "This permanently deletes $oldCompletedTaskCount completed " +
+                        (if (oldCompletedTaskCount == 1) "task" else "tasks") +
+                        " created more than $STATS_MONTHS_SHOWN months ago, for the whole family. " +
+                        "Tasks still awaiting approval are kept."
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.deleteOldCompletedTasks()
+                        showDeleteOldTasksDialog = false
+                    },
+                    modifier = Modifier.testTag("confirm_delete_old_tasks")
+                ) {
+                    Text("Delete", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteOldTasksDialog = false }) { Text("Cancel") }
+            }
+        )
     }
 
     if (showAddTaskDialog) {
@@ -578,7 +612,10 @@ private fun AwaitingApprovalHeader(count: Int) {
 private fun CompletionStatsExpandableSection(
     reports: List<MonthlyTaskReport>,
     isExpanded: Boolean,
-    onToggleExpanded: () -> Unit
+    onToggleExpanded: () -> Unit,
+    isActiveAdmin: Boolean,
+    oldCompletedTaskCount: Int,
+    onDeleteOldCompletedTasks: () -> Unit
 ) {
     Card(
         modifier = Modifier
@@ -625,15 +662,40 @@ private fun CompletionStatsExpandableSection(
                         .padding(start = 16.dp, end = 16.dp, bottom = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
+                    Text(
+                        text = "Last $STATS_MONTHS_SHOWN months",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                     if (reports.isEmpty()) {
                         Text(
-                            text = "No assigned chores yet — stats appear once tasks are assigned to a family member.",
+                            text = "No assigned chores in the last $STATS_MONTHS_SHOWN months — stats appear once tasks are assigned to a family member.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     } else {
                         reports.forEach { report ->
                             MonthlyTaskStatsCard(report)
+                        }
+                    }
+                    if (isActiveAdmin) {
+                        OutlinedButton(
+                            onClick = onDeleteOldCompletedTasks,
+                            enabled = oldCompletedTaskCount > 0,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("delete_old_completed_tasks_button"),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                        ) {
+                            Icon(Icons.Default.DeleteSweep, contentDescription = null)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                if (oldCompletedTaskCount > 0) {
+                                    "Delete $oldCompletedTaskCount completed older than $STATS_MONTHS_SHOWN months"
+                                } else {
+                                    "No completed tasks older than $STATS_MONTHS_SHOWN months"
+                                }
+                            )
                         }
                     }
                 }
