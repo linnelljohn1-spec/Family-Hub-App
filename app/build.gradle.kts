@@ -19,8 +19,8 @@ android {
     targetSdk = 35
     // CI injects these via -Pandroid.injected.version.code/name so each build gets a
     // unique, increasing versionCode (required for in-place update installs to work).
-    versionCode = (project.findProperty("android.injected.version.code") as String?)?.toIntOrNull() ?: 2
-    versionName = project.findProperty("android.injected.version.name") as String? ?: "1.1"
+    versionCode = (project.findProperty("android.injected.version.code") as String?)?.toIntOrNull() ?: 3
+    versionName = project.findProperty("android.injected.version.name") as String? ?: "1.2"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
@@ -106,6 +106,7 @@ dependencies {
   implementation(libs.firebase.ai)
   implementation(libs.firebase.appcheck.recaptcha)
   implementation(libs.firebase.firestore)
+  implementation(libs.firebase.messaging)
   implementation(libs.kotlinx.coroutines.android)
   implementation(libs.kotlinx.coroutines.core)
   // implementation(libs.play.services.location)

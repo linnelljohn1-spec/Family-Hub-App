@@ -7,7 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.data.AppDatabase
 import com.example.data.ChatMessage
 import com.example.data.ChatRepository
-import com.example.notifications.NotificationHelper
+import com.example.notifications.FamilyMessagingService
 import com.google.firebase.firestore.DocumentChange
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
@@ -30,13 +30,13 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val _syncGroupCode = MutableStateFlow("")
     private val _activeMemberId = MutableStateFlow(-1)
     private var activeMemberName: String = ""
+    private var activeMemberFirestoreId: String? = null
     private var activeMemberColorHex: String = "#6750A4"
 
     private val _isChatScreenVisible = MutableStateFlow(false)
     private val _lastViewedTimestamp = MutableStateFlow(0L)
 
     private var messagesListener: ListenerRegistration? = null
-    private var goalEventsListener: ListenerRegistration? = null
 
     val messages: StateFlow<List<ChatMessage>> = _syncGroupCode
         .flatMapLatest { code ->
@@ -55,14 +55,16 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         registerListeners(code)
     }
 
-    fun setActiveMember(memberId: Int, name: String, avatarColorHex: String) {
+    fun setActiveMember(memberId: Int, name: String, avatarColorHex: String, firestoreId: String?) {
         _activeMemberId.value = memberId
         activeMemberName = name
+        activeMemberFirestoreId = firestoreId
         activeMemberColorHex = avatarColorHex
     }
 
     fun setChatScreenVisible(visible: Boolean) {
         _isChatScreenVisible.value = visible
+        FamilyMessagingService.chatScreenVisible = visible
         if (visible) markAllRead()
     }
 
@@ -81,6 +83,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val message = hashMapOf(
             "clientMessageId" to UUID.randomUUID().toString(),
             "senderMemberId" to memberId,
+            "senderMemberFirestoreId" to activeMemberFirestoreId,
             "senderName" to activeMemberName,
             "senderAvatarColorHex" to activeMemberColorHex,
             "text" to text,
@@ -95,20 +98,14 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun registerListeners(code: String) {
         messagesListener?.remove()
-        goalEventsListener?.remove()
         if (code.isBlank()) return
 
         val familyDoc = firestore.collection("families").document(code)
-        var isFirstMessageSnapshot = true
-        var isFirstGoalEventSnapshot = true
 
         messagesListener = familyDoc.collection("messages")
             .orderBy("timestamp", Query.Direction.ASCENDING)
             .addSnapshotListener { snapshot, _ ->
                 if (snapshot == null) return@addSnapshotListener
-                val shouldNotify = !isFirstMessageSnapshot
-                isFirstMessageSnapshot = false
-
                 viewModelScope.launch {
                     for (change in snapshot.documentChanges) {
                         if (change.type != DocumentChange.Type.ADDED) continue
@@ -122,35 +119,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                             timestamp = (data["timestamp"] as? Long) ?: 0L,
                             syncGroupCode = code
                         )
+                        // Notifications for new messages now arrive as FCM pushes (functions/),
+                        // so they show even when the app is closed.
                         chatRepository.insertMessage(chatMessage)
-
-                        if (shouldNotify && chatMessage.senderMemberId != _activeMemberId.value && !_isChatScreenVisible.value) {
-                            NotificationHelper.showChatMessageNotification(
-                                getApplication(),
-                                chatMessage.senderName,
-                                chatMessage.text
-                            )
-                        }
                     }
-                }
-            }
-
-        goalEventsListener = familyDoc.collection("goalEvents")
-            .orderBy("timestamp", Query.Direction.ASCENDING)
-            .addSnapshotListener { snapshot, _ ->
-                if (snapshot == null) return@addSnapshotListener
-                val shouldNotify = !isFirstGoalEventSnapshot
-                isFirstGoalEventSnapshot = false
-
-                for (change in snapshot.documentChanges) {
-                    if (change.type != DocumentChange.Type.ADDED) continue
-                    if (!shouldNotify) continue
-                    val data = change.document.data
-                    val memberId = (data["memberId"] as? Long)?.toInt() ?: -1
-                    if (memberId == _activeMemberId.value) continue
-                    val memberName = data["memberName"] as? String ?: "A family member"
-                    val goalTitle = data["goalTitle"] as? String ?: "a goal"
-                    NotificationHelper.showGoalReachedNotification(getApplication(), memberName, goalTitle)
                 }
             }
     }
@@ -160,6 +132,5 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     override fun onCleared() {
         super.onCleared()
         messagesListener?.remove()
-        goalEventsListener?.remove()
     }
 }

@@ -342,7 +342,10 @@ class SavingsViewModel(application: Application) : AndroidViewModel(application)
         FamilyDataSyncService.upsertCalendarEvent(code, ensuredEvent, createdByFirestoreId)
     }
 
-    private suspend fun pushTask(task: FamilyTask) {
+    private suspend fun activeMemberFirestoreId(): String? =
+        repository.allMembers.first().find { it.id == _activeMemberId.value }?.let { ensureMemberFirestoreId(it).firestoreId }
+
+    private suspend fun pushTask(task: FamilyTask, createdByMemberFirestoreId: String? = null) {
         val code = _syncGroupCode.value
         if (code.isEmpty()) return
         val ensuredTask = ensureTaskFirestoreId(task)
@@ -351,7 +354,7 @@ class SavingsViewModel(application: Application) : AndroidViewModel(application)
         } else {
             repository.allMembers.first().find { it.id == ensuredTask.assignedMemberId }?.let { ensureMemberFirestoreId(it).firestoreId }
         }
-        FamilyDataSyncService.upsertTask(code, ensuredTask, assignedFirestoreId)
+        FamilyDataSyncService.upsertTask(code, ensuredTask, assignedFirestoreId, createdByMemberFirestoreId)
     }
 
     private suspend fun pushDeleteMember(member: FamilyMember) {
@@ -634,8 +637,23 @@ class SavingsViewModel(application: Application) : AndroidViewModel(application)
                 val updatedMember = currentMember.copy(unallocatedBalance = currentMember.unallocatedBalance + amount)
                 repository.updateMember(updatedMember)
                 pushMember(updatedMember)
+                recordWalletDeposit(updatedMember, amount)
             }
         }
+    }
+
+    private suspend fun recordWalletDeposit(member: FamilyMember, amount: Double) {
+        val code = _syncGroupCode.value
+        if (code.isEmpty() || amount <= 0) return
+        val depositor = repository.allMembers.first().find { it.id == _activeMemberId.value }
+        WalletEventService.recordDeposit(
+            syncGroupCode = code,
+            memberFirestoreId = ensureMemberFirestoreId(member).firestoreId!!,
+            memberName = member.name,
+            amount = amount,
+            byMemberFirestoreId = depositor?.let { ensureMemberFirestoreId(it).firestoreId },
+            byMemberName = depositor?.name
+        )
     }
 
     fun deductFromUnallocatedFund(memberId: Int, amount: Double) {
@@ -737,13 +755,15 @@ class SavingsViewModel(application: Application) : AndroidViewModel(application)
         val goal = repository.allGoals.first().find { it.id == goalId } ?: return
         if (previousTotal >= goal.targetAmount || newTotal < goal.targetAmount) return
 
-        val memberName = repository.allMembers.first().find { it.id == memberId }?.name ?: "A family member"
+        val member = repository.allMembers.first().find { it.id == memberId }
+        val memberName = member?.name ?: "A family member"
         NotificationHelper.showGoalReachedNotification(getApplication(), memberName, goal.title)
         GoalEventService.recordGoalReached(
             syncGroupCode = _syncGroupCode.value,
             goalId = goal.id,
             memberId = memberId,
             memberName = memberName,
+            memberFirestoreId = member?.firestoreId,
             goalTitle = goal.title
         )
     }
@@ -878,7 +898,7 @@ class SavingsViewModel(application: Application) : AndroidViewModel(application)
             val task = FamilyTask(title = title, description = description, assignedMemberId = assignedMemberId, dueDate = dueDate, firestoreId = UUID.randomUUID().toString())
             val rowId = taskRepository.insertTask(task)
             val savedTask = task.copy(id = rowId.toInt())
-            pushTask(savedTask)
+            pushTask(savedTask, createdByMemberFirestoreId = activeMemberFirestoreId())
             scheduleReminderForTask(savedTask)
         }
     }

@@ -98,10 +98,15 @@ fun FamilySavingsApp(viewModel: SavingsViewModel, chatViewModel: ChatViewModel, 
     }
     LaunchedEffect(activeMember) {
         activeMember?.let {
-            chatViewModel.setActiveMember(it.id, it.name, it.avatarColorHex)
-            pollsViewModel.setActiveMember(it.id, it.name, it.isAdmin)
+            chatViewModel.setActiveMember(it.id, it.name, it.avatarColorHex, it.firestoreId)
+            pollsViewModel.setActiveMember(it.id, it.name, it.isAdmin, it.firestoreId)
             shoppingListsViewModel.setActiveMember(it.id, it.name, it.isAdmin)
         }
+    }
+    // Tell the push-notification backend which family member is using this device.
+    val pushContext = LocalContext.current
+    LaunchedEffect(syncGroupCode, activeMember?.firestoreId) {
+        PushTokenService.registerDevice(pushContext, syncGroupCode, activeMember?.firestoreId)
     }
 
     // Default onto the user who is logged on when activeMemberId loads
