@@ -20,6 +20,8 @@ object NotificationHelper {
     const val CHANNEL_POLLS_ID = "new_polls"
     const val CHANNEL_CALENDAR_REMINDERS_ID = "calendar_event_reminders"
     const val CHANNEL_TASK_REMINDERS_ID = "task_reminders"
+    const val CHANNEL_NEW_TASKS_ID = "new_tasks"
+    const val CHANNEL_WALLET_ID = "wallet"
 
     fun createChannels(context: Context) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
@@ -66,11 +68,43 @@ object NotificationHelper {
             description = "Reminders for tasks due today"
         }
 
+        val newTasksChannel = NotificationChannel(
+            CHANNEL_NEW_TASKS_ID,
+            "New Tasks",
+            NotificationManager.IMPORTANCE_HIGH
+        ).apply {
+            description = "Tasks newly assigned to you"
+        }
+
+        val walletChannel = NotificationChannel(
+            CHANNEL_WALLET_ID,
+            "Wallet",
+            NotificationManager.IMPORTANCE_HIGH
+        ).apply {
+            description = "Money added to your wallet"
+        }
+
         manager.createNotificationChannel(chatChannel)
         manager.createNotificationChannel(goalsChannel)
         manager.createNotificationChannel(pollsChannel)
         manager.createNotificationChannel(calendarRemindersChannel)
         manager.createNotificationChannel(taskRemindersChannel)
+        manager.createNotificationChannel(newTasksChannel)
+        manager.createNotificationChannel(walletChannel)
+    }
+
+    /** Shows a push that arrived from Cloud Messaging while the app was in the foreground. */
+    fun showPushNotification(context: Context, channelId: String, title: String, text: String, id: String?) {
+        val notification = NotificationCompat.Builder(context, channelId)
+            .setSmallIcon(R.mipmap.ic_launcher)
+            .setContentTitle(title)
+            .setContentText(text)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(text))
+            .setAutoCancel(true)
+            .setContentIntent(buildOpenAppIntent(context))
+            .build()
+
+        notify(context, "${channelId}_${id ?: title + text}".hashCode(), notification)
     }
 
     fun showChatMessageNotification(context: Context, senderName: String, text: String) {

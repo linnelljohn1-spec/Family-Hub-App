@@ -125,9 +125,14 @@ object FamilyDataSyncService {
 
     // ---- Tasks ----
 
-    fun upsertTask(syncGroupCode: String, task: FamilyTask, assignedMemberFirestoreId: String?) {
+    fun upsertTask(
+        syncGroupCode: String,
+        task: FamilyTask,
+        assignedMemberFirestoreId: String?,
+        createdByMemberFirestoreId: String? = null
+    ) {
         val firestoreId = task.firestoreId ?: return
-        val data = hashMapOf(
+        val data = hashMapOf<String, Any?>(
             "title" to task.title,
             "description" to task.description,
             "assignedMemberFirestoreId" to assignedMemberFirestoreId,
@@ -137,6 +142,10 @@ object FamilyDataSyncService {
             "createdAt" to task.createdAt,
             "updatedAt" to System.currentTimeMillis()
         )
+        // Only sent on creation; merge keeps it on later updates. Read by the new-task push function.
+        if (createdByMemberFirestoreId != null) {
+            data["createdByMemberFirestoreId"] = createdByMemberFirestoreId
+        }
         familyDoc(syncGroupCode).collection("tasks").document(firestoreId)
             .set(data, SetOptions.merge())
     }

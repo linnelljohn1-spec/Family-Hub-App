@@ -10,6 +10,7 @@ object GoalEventService {
         goalId: Int,
         memberId: Int,
         memberName: String,
+        memberFirestoreId: String?,
         goalTitle: String
     ) {
         if (syncGroupCode.isBlank()) return
@@ -17,6 +18,7 @@ object GoalEventService {
             "goalId" to goalId,
             "memberId" to memberId,
             "memberName" to memberName,
+            "memberFirestoreId" to memberFirestoreId,
             "goalTitle" to goalTitle,
             "timestamp" to System.currentTimeMillis()
         )

@@ -9,7 +9,6 @@ import com.example.data.PollMode
 import com.example.data.PollOption
 import com.example.data.PollRepository
 import com.example.data.PollVote
-import com.example.notifications.NotificationHelper
 import com.google.firebase.firestore.DocumentChange
 import com.google.firebase.firestore.DocumentReference
 import com.google.firebase.firestore.FirebaseFirestore
@@ -30,6 +29,7 @@ class PollsViewModel(application: Application) : AndroidViewModel(application) {
     private val _activeMemberId = MutableStateFlow(-1)
     private val _isActiveAdmin = MutableStateFlow(false)
     private var activeMemberName: String = ""
+    private var activeMemberFirestoreId: String? = null
 
     private var pollsListener: ListenerRegistration? = null
     private val voteListeners = mutableMapOf<String, ListenerRegistration>()
@@ -59,9 +59,10 @@ class PollsViewModel(application: Application) : AndroidViewModel(application) {
         registerListeners(code)
     }
 
-    fun setActiveMember(memberId: Int, name: String, isAdmin: Boolean) {
+    fun setActiveMember(memberId: Int, name: String, isAdmin: Boolean, firestoreId: String?) {
         _activeMemberId.value = memberId
         activeMemberName = name
+        activeMemberFirestoreId = firestoreId
         _isActiveAdmin.value = isAdmin
     }
 
@@ -84,6 +85,7 @@ class PollsViewModel(application: Application) : AndroidViewModel(application) {
             "options" to cleanOptions,
             "createdByMemberId" to memberId,
             "createdByName" to activeMemberName,
+            "createdByMemberFirestoreId" to activeMemberFirestoreId,
             "createdAt" to System.currentTimeMillis(),
             "isClosed" to false,
             "mode" to mode
@@ -235,15 +237,11 @@ class PollsViewModel(application: Application) : AndroidViewModel(application) {
         if (code.isBlank()) return
 
         val familyDoc = firestore.collection("families").document(code)
-        var isFirstPollSnapshot = true
 
         pollsListener = familyDoc.collection("polls")
             .orderBy("createdAt", Query.Direction.ASCENDING)
             .addSnapshotListener { snapshot, _ ->
                 if (snapshot == null) return@addSnapshotListener
-                val shouldNotify = !isFirstPollSnapshot
-                isFirstPollSnapshot = false
-
                 viewModelScope.launch {
                     for (change in snapshot.documentChanges) {
                         val doc = change.document
@@ -269,13 +267,6 @@ class PollsViewModel(application: Application) : AndroidViewModel(application) {
                                 val resolvedPollId = if (existing != null) existing.id else localId.toInt()
                                 registerVotesListener(familyDoc, doc.id, resolvedPollId)
                                 registerOptionsListener(familyDoc, doc.id, resolvedPollId)
-
-                                if (change.type == DocumentChange.Type.ADDED && shouldNotify &&
-                                    createdByMemberId != _activeMemberId.value
-                                ) {
-                                    val creatorName = data["createdByName"] as? String ?: "A family member"
-                                    NotificationHelper.showNewPollNotification(getApplication(), creatorName, poll.question)
-                                }
                             }
                             DocumentChange.Type.REMOVED -> {
                                 pollRepository.getPollByFirestoreId(doc.id)?.let {

@@ -19,3 +19,7 @@ local.properties
 debug.keystore
 *.jks
 *.keystore
+
+# Firebase
+.firebase/
+firebase-debug.log
