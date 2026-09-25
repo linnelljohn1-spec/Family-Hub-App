@@ -5,11 +5,15 @@
  * devices registered in families/{code}/devices/{fcmToken} (written by the app's
  * PushTokenService). Device docs carry the memberFirestoreId of whoever uses that phone,
  * which is how recipients are targeted/excluded.
+ *
+ * App-update pushes aren't family-specific: checkForAppUpdate polls GitHub releases on a
+ * schedule and sends to the "app_updates" topic, which every install subscribes to.
  */
 const { initializeApp } = require("firebase-admin/app");
 const { getFirestore } = require("firebase-admin/firestore");
 const { getMessaging } = require("firebase-admin/messaging");
 const { onDocumentCreated } = require("firebase-functions/v2/firestore");
+const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { setGlobalOptions } = require("firebase-functions/v2");
 const logger = require("firebase-functions/logger");
 
@@ -187,4 +191,51 @@ exports.onWalletDeposit = onDocumentCreated("families/{code}/walletEvents/{id}",
       id: event.params.id,
     }
   );
+});
+
+const RELEASES_API_URL =
+  "https://api.github.com/repos/linnelljohn1-spec/Family-Hub-App/releases/latest";
+const APP_UPDATES_TOPIC = "app_updates";
+
+exports.checkForAppUpdate = onSchedule("every 60 minutes", async () => {
+  const res = await fetch(RELEASES_API_URL, {
+    headers: { Accept: "application/vnd.github+json", "User-Agent": "family-hub-functions" },
+  });
+  if (!res.ok) {
+    logger.warn(`GitHub releases check failed: HTTP ${res.status}`);
+    return;
+  }
+  const release = await res.json();
+
+  // Same parsing as the app's UpdateChecker: tag "v123" -> versionCode 123.
+  const versionCode = parseInt(String(release.tag_name || "").replace(/^v/, ""), 10);
+  const hasApk = (release.assets || []).some((a) => String(a.name).endsWith(".apk"));
+  if (!Number.isInteger(versionCode) || !hasApk) return;
+
+  const stateRef = db.collection("meta").doc("appUpdates");
+  const state = await stateRef.get();
+
+  // First run: just record the current release so deploying doesn't announce an old one.
+  if (!state.exists) {
+    await stateRef.set({ lastNotifiedVersionCode: versionCode });
+    logger.info(`Initialised app update state at v${versionCode}`);
+    return;
+  }
+  if (versionCode <= (state.get("lastNotifiedVersionCode") || 0)) return;
+
+  // Data-only so the app always handles it and can skip devices already on this version.
+  await getMessaging().send({
+    topic: APP_UPDATES_TOPIC,
+    data: {
+      type: "update",
+      id: String(versionCode),
+      versionCode: String(versionCode),
+      title: "Update available",
+      body: `${release.name || `Family Hub v${versionCode}`} is ready to install`,
+    },
+    android: { priority: "high" },
+  });
+
+  await stateRef.set({ lastNotifiedVersionCode: versionCode });
+  logger.info(`Sent app update push for v${versionCode}`);
 });

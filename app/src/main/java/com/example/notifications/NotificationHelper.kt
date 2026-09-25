@@ -22,6 +22,10 @@ object NotificationHelper {
     const val CHANNEL_TASK_REMINDERS_ID = "task_reminders"
     const val CHANNEL_NEW_TASKS_ID = "new_tasks"
     const val CHANNEL_WALLET_ID = "wallet"
+    const val CHANNEL_APP_UPDATES_ID = "app_updates"
+
+    // FCM topic every install subscribes to; functions/checkForAppUpdate pushes here.
+    const val TOPIC_APP_UPDATES = "app_updates"
 
     fun createChannels(context: Context) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
@@ -84,6 +88,14 @@ object NotificationHelper {
             description = "Money added to your wallet"
         }
 
+        val appUpdatesChannel = NotificationChannel(
+            CHANNEL_APP_UPDATES_ID,
+            "App Updates",
+            NotificationManager.IMPORTANCE_DEFAULT
+        ).apply {
+            description = "When a new version of Family Hub is available"
+        }
+
         manager.createNotificationChannel(chatChannel)
         manager.createNotificationChannel(goalsChannel)
         manager.createNotificationChannel(pollsChannel)
@@ -91,6 +103,7 @@ object NotificationHelper {
         manager.createNotificationChannel(taskRemindersChannel)
         manager.createNotificationChannel(newTasksChannel)
         manager.createNotificationChannel(walletChannel)
+        manager.createNotificationChannel(appUpdatesChannel)
     }
 
     /** Shows a push that arrived from Cloud Messaging while the app was in the foreground. */
